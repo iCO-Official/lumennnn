@@ -14,27 +14,162 @@ export type Database = {
   }
   public: {
     Tables: {
-      profiles: {
+      ai_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      health_logs: {
         Row: {
           created_at: string
+          energy: number | null
+          id: string
+          log_date: string
+          mood: number | null
+          notes: string | null
+          steps: number | null
+          updated_at: string
+          user_id: string
+          water_ml: number | null
+          weight_kg: number | null
+        }
+        Insert: {
+          created_at?: string
+          energy?: number | null
+          id?: string
+          log_date?: string
+          mood?: number | null
+          notes?: string | null
+          steps?: number | null
+          updated_at?: string
+          user_id: string
+          water_ml?: number | null
+          weight_kg?: number | null
+        }
+        Update: {
+          created_at?: string
+          energy?: number | null
+          id?: string
+          log_date?: string
+          mood?: number | null
+          notes?: string | null
+          steps?: number | null
+          updated_at?: string
+          user_id?: string
+          water_ml?: number | null
+          weight_kg?: number | null
+        }
+        Relationships: []
+      }
+      journal_entries: {
+        Row: {
+          content: string
+          created_at: string
+          entry_date: string
+          id: string
+          mood: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          entry_date?: string
+          id?: string
+          mood?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          entry_date?: string
+          id?: string
+          mood?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          age: number | null
+          created_at: string
           display_name: string | null
+          gender: string | null
           id: string
           theme: string
           updated_at: string
         }
         Insert: {
+          age?: number | null
           created_at?: string
           display_name?: string | null
+          gender?: string | null
           id: string
           theme?: string
           updated_at?: string
         }
         Update: {
+          age?: number | null
           created_at?: string
           display_name?: string | null
+          gender?: string | null
           id?: string
           theme?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sleep_logs: {
+        Row: {
+          created_at: string
+          hours: number
+          id: string
+          log_date: string
+          notes: string | null
+          quality: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          hours: number
+          id?: string
+          log_date?: string
+          notes?: string | null
+          quality?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          hours?: number
+          id?: string
+          log_date?: string
+          notes?: string | null
+          quality?: number | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -74,6 +209,45 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      workouts: {
+        Row: {
+          created_at: string
+          duration_min: number | null
+          id: string
+          intensity: number | null
+          kind: string | null
+          notes: string | null
+          title: string
+          updated_at: string
+          user_id: string
+          workout_date: string
+        }
+        Insert: {
+          created_at?: string
+          duration_min?: number | null
+          id?: string
+          intensity?: number | null
+          kind?: string | null
+          notes?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+          workout_date?: string
+        }
+        Update: {
+          created_at?: string
+          duration_min?: number | null
+          id?: string
+          intensity?: number | null
+          kind?: string | null
+          notes?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          workout_date?: string
         }
         Relationships: []
       }
