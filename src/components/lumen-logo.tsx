@@ -24,9 +24,15 @@ export function LumenMark({ className, size = 22 }: { className?: string; size?:
 
 export function LumenLogo({ className }: { className?: string }) {
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex items-center gap-2 notranslate", className)} translate="no">
       <LumenMark />
-      <span className="font-serif text-xl tracking-tight text-foreground">Lumen</span>
+      <span
+        className="font-serif text-xl tracking-tight text-foreground notranslate"
+        translate="no"
+        suppressHydrationWarning
+      >
+        Lumen
+      </span>
     </div>
   );
 }
