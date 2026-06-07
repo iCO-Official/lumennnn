@@ -24,18 +24,30 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+const GENDERS = [
+  { id: "male", label: "Парень" },
+  { id: "female", label: "Девушка" },
+  { id: "other", label: "Другое" },
+];
+
 function AuthPage() {
   const { mode } = Route.useSearch();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
+  const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/app" });
+      if (data.session) {
+        setHasSession(true);
+        navigate({ to: "/app" });
+      }
     });
   }, [navigate]);
 
@@ -46,16 +58,26 @@ function AuthPage() {
     setLoading(true);
     try {
       if (isSignup) {
+        if (!name.trim()) throw new Error("Укажи имя");
+        if (!gender) throw new Error("Выбери пол");
+        const ageNum = age ? Number(age) : null;
+        if (ageNum !== null && (Number.isNaN(ageNum) || ageNum < 5 || ageNum > 120)) {
+          throw new Error("Возраст выглядит странно");
+        }
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: window.location.origin + "/app",
-            data: { name },
+            data: {
+              name: name.trim(),
+              age: ageNum ? String(ageNum) : "",
+              gender,
+            },
           },
         });
         if (error) throw error;
-        toast.success("Проверь почту для подтверждения", { description: "Письмо отправлено на " + email });
+        toast.success("Готово! Проверь почту", { description: "Подтверди email и заходи." });
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -92,8 +114,12 @@ function AuthPage() {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[500px] bg-glow" />
 
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 pt-6 sm:px-8">
-        <Link to="/" className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Назад
+        <Link
+          to={hasSession ? "/app" : "/"}
+          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span translate="no">Назад</span>
         </Link>
         <LumenLogo />
         <ThemeToggle />
@@ -110,32 +136,26 @@ function AuthPage() {
             {isSignup ? "Добро пожаловать" : "С возвращением"}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {isSignup ? "Создай аккаунт за 30 секунд." : "Войди, чтобы продолжить."}
+            {isSignup ? "Расскажи пару штук о себе — AI будет общаться по-человечески." : "Войди, чтобы продолжить."}
           </p>
 
           <div className="mt-6 flex flex-col gap-2">
             <button
+              type="button"
               onClick={() => handleOAuth("google")}
               disabled={!!oauthLoading}
               className="inline-flex h-11 items-center justify-center gap-3 rounded-full border border-border bg-background text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
             >
-              {oauthLoading === "google" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <GoogleIcon />
-              )}
+              {oauthLoading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
               Продолжить с Google
             </button>
             <button
+              type="button"
               onClick={() => handleOAuth("apple")}
               disabled={!!oauthLoading}
               className="inline-flex h-11 items-center justify-center gap-3 rounded-full border border-border bg-background text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
             >
-              {oauthLoading === "apple" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <AppleIcon />
-              )}
+              {oauthLoading === "apple" ? <Loader2 className="h-4 w-4 animate-spin" /> : <AppleIcon />}
               Продолжить с Apple
             </button>
           </div>
@@ -148,13 +168,41 @@ function AuthPage() {
 
           <form onSubmit={handleEmail} className="flex flex-col gap-3">
             {isSignup && (
-              <input
-                type="text"
-                placeholder="Имя"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="h-11 rounded-xl border border-input bg-background px-4 text-sm outline-none transition-colors focus:border-foreground"
-              />
+              <>
+                <input
+                  type="text"
+                  placeholder="Как тебя зовут"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  className="h-11 rounded-xl border border-input bg-background px-4 text-sm outline-none transition-colors focus:border-foreground"
+                />
+                <input
+                  type="number"
+                  placeholder="Возраст"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  min={5}
+                  max={120}
+                  className="h-11 rounded-xl border border-input bg-background px-4 text-sm outline-none transition-colors focus:border-foreground"
+                />
+                <div className="flex gap-2">
+                  {GENDERS.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setGender(g.id)}
+                      className={`flex-1 rounded-xl border px-3 py-2.5 text-xs transition-colors ${
+                        gender === g.id
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-input bg-background text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
             <input
               type="email"
