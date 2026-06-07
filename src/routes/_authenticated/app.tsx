@@ -436,11 +436,11 @@ function SleepSection() {
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} domain={[0, 12]} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }} />
-                <Line type="monotone" dataKey="hours" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ r: 3 }} />
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+                <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={10} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 12]} />
+                <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 12 }} />
+                <Line type="monotone" dataKey="hours" stroke="var(--foreground)" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -696,11 +696,11 @@ function StatsSection() {
         <Card title="Сон, часы">
           <div className="h-40">
             <ResponsiveContainer><LineChart data={sleepChart}>
-              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-              <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
-              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }} />
-              <Line type="monotone" dataKey="hours" stroke="hsl(var(--foreground))" strokeWidth={2} />
+              <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+              <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={10} />
+              <YAxis stroke="var(--muted-foreground)" fontSize={10} />
+              <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 12 }} />
+              <Line type="monotone" dataKey="hours" stroke="var(--foreground)" strokeWidth={2} />
             </LineChart></ResponsiveContainer>
           </div>
         </Card>
@@ -710,12 +710,12 @@ function StatsSection() {
         <Card title="Настроение и энергия">
           <div className="h-40">
             <ResponsiveContainer><BarChart data={moodChart}>
-              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
-              <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} domain={[0, 5]} />
-              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }} />
-              <Bar dataKey="mood" fill="hsl(var(--foreground))" />
-              <Bar dataKey="energy" fill="hsl(var(--muted-foreground))" />
+              <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+              <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={10} />
+              <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 5]} />
+              <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 12 }} />
+              <Bar dataKey="mood" fill="var(--foreground)" />
+              <Bar dataKey="energy" fill="var(--muted-foreground)" />
             </BarChart></ResponsiveContainer>
           </div>
         </Card>
