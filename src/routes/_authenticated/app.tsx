@@ -231,7 +231,7 @@ function PlansSection() {
         ))}
       </div>
 
-      <form onSubmit={add} className="mb-6 flex gap-2">
+      <form onSubmit={add} className="mb-3 flex gap-2">
         <input
           type="text"
           placeholder={`Добавить задачу…`}
@@ -243,6 +243,51 @@ function PlansSection() {
           {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-5 w-5" />}
         </button>
       </form>
+
+      <button
+        type="button"
+        onClick={() => setAiOpen((v) => !v)}
+        className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <Wand2 className="h-3.5 w-3.5" /> {aiOpen ? "Закрыть AI-разбор" : "AI: распознать план из текста"}
+      </button>
+      <AnimatePresence>
+        {aiOpen && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-4 overflow-hidden">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <textarea
+                value={aiText}
+                onChange={(e) => setAiText(e.target.value)}
+                rows={4}
+                placeholder="Напиши план словами: «утром бег 5км, потом созвон с командой, вечером прочитать главу»"
+                className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+              <button
+                type="button"
+                disabled={aiBusy || !aiText.trim()}
+                onClick={async () => {
+                  setAiBusy(true);
+                  try {
+                    const r = await parsePlan({ data: { text: aiText.trim(), scope } });
+                    if (r.inserted) {
+                      setTasks((t) => [...t, ...(r.tasks as Task[])]);
+                      toast.success(`Добавлено: ${r.inserted}`);
+                      setAiText(""); setAiOpen(false);
+                    } else toast.error("AI не нашёл задач в тексте");
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Ошибка");
+                  } finally { setAiBusy(false); }
+                }}
+                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40"
+              >
+                {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                Распознать и добавить
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
 
       {loading ? (
         <Loader />
