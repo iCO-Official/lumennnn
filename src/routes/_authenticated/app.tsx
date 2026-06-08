@@ -424,10 +424,13 @@ function moodEmoji(m: number | null) {
 }
 
 // ============= SLEEP =============
-type Sleep = { id: string; log_date: string; hours: number; quality: number | null };
+type Sleep = { id: string; log_date: string; hours: number; quality: number | null; bedtime: string | null; wake_time: string | null };
 
 function SleepSection() {
   const [logs, setLogs] = useState<Sleep[]>([]);
+  const [mode, setMode] = useState<"auto" | "manual">("auto");
+  const [bedtime, setBedtime] = useState("23:00");
+  const [wake, setWake] = useState("07:00");
   const [hours, setHours] = useState("8");
   const [quality, setQuality] = useState(3);
   const [loading, setLoading] = useState(true);
@@ -441,16 +444,41 @@ function SleepSection() {
     setLoading(false);
   }
 
+  // Auto-calc hours from bedtime → wake (assumes wake is after bedtime, even across midnight)
+  const autoHours = useMemo(() => {
+    const [bh, bm] = bedtime.split(":").map(Number);
+    const [wh, wm] = wake.split(":").map(Number);
+    if (isNaN(bh) || isNaN(wh)) return 0;
+    let diff = (wh * 60 + wm) - (bh * 60 + bm);
+    if (diff <= 0) diff += 24 * 60;
+    return Math.round((diff / 60) * 10) / 10;
+  }, [bedtime, wake]);
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const h = parseFloat(hours);
+    const h = mode === "auto" ? autoHours : parseFloat(hours);
     if (!h || h < 0 || h > 24) { toast.error("Часы выглядят странно"); return; }
     setSaving(true);
     const { data: u } = await supabase.auth.getUser();
     const today = new Date().toISOString().slice(0, 10);
+
+    let bedtimeIso: string | null = null;
+    let wakeIso: string | null = null;
+    if (mode === "auto") {
+      const todayD = new Date();
+      const [bh, bm] = bedtime.split(":").map(Number);
+      const [wh, wm] = wake.split(":").map(Number);
+      const bed = new Date(todayD); bed.setHours(bh, bm, 0, 0);
+      const wk = new Date(todayD); wk.setHours(wh, wm, 0, 0);
+      // bedtime usually previous day if wake < bedtime
+      if (wk <= bed) bed.setDate(bed.getDate() - 1);
+      bedtimeIso = bed.toISOString();
+      wakeIso = wk.toISOString();
+    }
+
     const { data, error } = await supabase
       .from("sleep_logs")
-      .upsert({ user_id: u.user!.id, hours: h, quality, log_date: today }, { onConflict: "user_id,log_date" })
+      .upsert({ user_id: u.user!.id, hours: h, quality, log_date: today, bedtime: bedtimeIso, wake_time: wakeIso }, { onConflict: "user_id,log_date" })
       .select("*").single();
     if (error) toast.error(error.message);
     else if (data) {
@@ -466,12 +494,42 @@ function SleepSection() {
   return (
     <div>
       <form onSubmit={save} className="mb-6 rounded-2xl border border-border bg-card p-5">
-        <div className="mb-1 text-xs text-muted-foreground">Сегодня я спал</div>
-        <div className="flex items-end gap-3">
-          <input type="number" step="0.5" min="0" max="24" value={hours} onChange={(e) => setHours(e.target.value)}
-            className="h-14 w-24 rounded-xl border border-input bg-background px-3 text-2xl font-serif outline-none focus:border-foreground" />
-          <span className="pb-2 text-sm text-muted-foreground">часов</span>
+        <div className="mb-4 inline-flex rounded-full border border-border p-1">
+          {(["auto", "manual"] as const).map((m) => (
+            <button key={m} type="button" onClick={() => setMode(m)}
+              className={`relative rounded-full px-4 py-1.5 text-xs transition-colors ${mode === m ? "text-background" : "text-muted-foreground"}`}>
+              {mode === m && <motion.span layoutId="sleep-mode" className="absolute inset-0 rounded-full bg-foreground" transition={{ type: "spring", duration: 0.4, bounce: 0.2 }} />}
+              <span className="relative z-10">{m === "auto" ? "По времени" : "Вручную"}</span>
+            </button>
+          ))}
         </div>
+
+        {mode === "auto" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted-foreground">Лёг</span>
+              <input type="time" value={bedtime} onChange={(e) => setBedtime(e.target.value)}
+                className="h-12 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus:border-foreground" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted-foreground">Проснулся</span>
+              <input type="time" value={wake} onChange={(e) => setWake(e.target.value)}
+                className="h-12 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus:border-foreground" />
+            </label>
+            <div className="col-span-2 mt-1 text-sm text-muted-foreground">
+              Lumen посчитает: <span className="font-serif text-2xl text-foreground">{autoHours}</span> ч
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mb-1 text-xs text-muted-foreground">Сегодня я спал</div>
+            <div className="flex items-end gap-3">
+              <input type="number" step="0.5" min="0" max="24" value={hours} onChange={(e) => setHours(e.target.value)}
+                className="h-14 w-24 rounded-xl border border-input bg-background px-3 text-2xl font-serif outline-none focus:border-foreground" />
+              <span className="pb-2 text-sm text-muted-foreground">часов</span>
+            </div>
+          </>
+        )}
         <div className="mt-4">
           <div className="mb-2 text-xs text-muted-foreground">Качество</div>
           <MoodPicker value={quality} onChange={setQuality} />
@@ -480,6 +538,7 @@ function SleepSection() {
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}Сохранить
         </button>
       </form>
+
 
       <div className="mb-6 rounded-2xl border border-border bg-card p-5">
         <div className="mb-3 flex items-center justify-between">
