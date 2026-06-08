@@ -7,12 +7,12 @@ import { LumenLogo } from "@/components/lumen-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Check, Plus, LogOut, Loader2, Trash2, Calendar, Moon, Activity,
-  Dumbbell, NotebookPen, Sparkles, BarChart3, Send, RotateCw,
+  Dumbbell, NotebookPen, Sparkles, BarChart3, Send, RotateCw, Target, Settings as SettingsIcon, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { chatWithAi, resetAiChat, analyzeWeek } from "@/lib/ai.functions";
+import { chatWithAi, resetAiChat, analyzeWeek, parsePlanText } from "@/lib/ai.functions";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Area, AreaChart,
 } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -20,16 +20,18 @@ export const Route = createFileRoute("/_authenticated/app")({
   component: AppPage,
 });
 
-type Section = "plans" | "journal" | "sleep" | "workouts" | "health" | "stats" | "ai";
+type Section = "plans" | "goals" | "journal" | "sleep" | "workouts" | "health" | "stats" | "ai" | "settings";
 
 const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "plans", label: "Планы", icon: Calendar },
+  { id: "goals", label: "Цели", icon: Target },
   { id: "journal", label: "Дневник", icon: NotebookPen },
   { id: "sleep", label: "Сон", icon: Moon },
   { id: "workouts", label: "Тренировки", icon: Dumbbell },
   { id: "health", label: "Здоровье", icon: Activity },
   { id: "stats", label: "Статистика", icon: BarChart3 },
   { id: "ai", label: "AI-друг", icon: Sparkles },
+  { id: "settings", label: "Настройки", icon: SettingsIcon },
 ];
 
 function AppPage() {
@@ -49,13 +51,13 @@ function AppPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 bg-grid opacity-30" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[400px] bg-glow" />
+    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+      <div className="aurora-bg" />
+      <div className="pointer-events-none absolute inset-0 bg-grid opacity-20" />
 
-      <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-6 sm:px-8">
-        <LumenLogo />
-        <div className="flex items-center gap-2">
+      <header className="pt-safe relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 sm:px-8">
+        <div className="pt-4"><LumenLogo /></div>
+        <div className="flex items-center gap-2 pt-4">
           <ThemeToggle />
           <button
             onClick={signOut}
@@ -67,19 +69,19 @@ function AppPage() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-4xl px-5 pb-32 pt-8 sm:px-8">
-        <div className="mb-6">
+      <main className="pb-safe relative z-10 mx-auto max-w-4xl px-5 pb-24 pt-8 sm:px-8">
+        <motion.div className="mb-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className="text-sm text-muted-foreground">
             <span translate="no">{greeting()}</span>{name ? ", " + name : ""}.
           </div>
           <h1 className="mt-1 font-serif text-3xl tracking-tight sm:text-4xl">
             <span translate="no">{todayLabel()}</span>
           </h1>
-        </div>
+        </motion.div>
 
         {/* Section tabs */}
-        <div className="-mx-5 mb-6 overflow-x-auto px-5 sm:mx-0 sm:px-0">
-          <div className="inline-flex gap-1.5 rounded-full border border-border bg-card p-1">
+        <div className="-mx-5 mb-6 overflow-x-auto px-5 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="inline-flex gap-1.5 rounded-full border border-border bg-card/80 p-1 backdrop-blur">
             {SECTIONS.map((s) => {
               const Icon = s.icon;
               const active = section === s.id;
@@ -109,24 +111,27 @@ function AppPage() {
         <AnimatePresence mode="wait">
           <motion.div
             key={section}
-            initial={{ opacity: 0, y: 6 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
           >
             {section === "plans" && <PlansSection />}
+            {section === "goals" && <GoalsSection />}
             {section === "journal" && <JournalSection />}
             {section === "sleep" && <SleepSection />}
             {section === "workouts" && <WorkoutsSection />}
             {section === "health" && <HealthSection />}
             {section === "stats" && <StatsSection />}
             {section === "ai" && <AiSection />}
+            {section === "settings" && <SettingsSection />}
           </motion.div>
         </AnimatePresence>
       </main>
     </div>
   );
 }
+
 
 // ============= PLANS =============
 type Scope = "day" | "week" | "month";
