@@ -796,6 +796,20 @@ function StatsSection() {
   const moodChart = [...data.health].reverse().map((h) => ({ date: h.log_date.slice(5), mood: h.mood, energy: h.energy }));
   const sleepChart = [...data.sleep].reverse().map((l) => ({ date: l.log_date.slice(5), hours: Number(l.hours) }));
 
+  // Daily completion % over last 14 days
+  const completionChart = useMemo(() => {
+    const days: { date: string; pct: number; done: number; total: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      const dayTasks = data.tasks.filter((t) => t.scheduled_for === iso);
+      const done = dayTasks.filter((t) => t.completed).length;
+      const total = dayTasks.length;
+      days.push({ date: iso.slice(5), pct: total ? Math.round((done / total) * 100) : 0, done, total });
+    }
+    return days;
+  }, [data.tasks]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -804,6 +818,25 @@ function StatsSection() {
         <Stat label="Тренировок" value={String(workoutsCount)} sub="за 2 недели" />
         <Stat label="Настроение" value={moodAvg} sub="из 5" />
       </div>
+
+      <Card title="Выполнение задач, % по дням">
+        <div className="h-44">
+          <ResponsiveContainer><AreaChart data={completionChart}>
+            <defs>
+              <linearGradient id="pctGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--foreground)" stopOpacity={0.5} />
+                <stop offset="100%" stopColor="var(--foreground)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+            <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 100]} />
+            <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 12 }} />
+            <Area type="monotone" dataKey="pct" stroke="var(--foreground)" strokeWidth={2} fill="url(#pctGrad)" />
+          </AreaChart></ResponsiveContainer>
+        </div>
+      </Card>
+
 
       {sleepChart.length > 0 && (
         <Card title="Сон, часы">
