@@ -143,6 +143,10 @@ function PlansSection() {
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiText, setAiText] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const parsePlan = useServerFn(parsePlanText);
 
   useEffect(() => { load(); }, []);
 
