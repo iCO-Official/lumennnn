@@ -1025,7 +1025,188 @@ function AiSection() {
   );
 }
 
-// ============= shared =============
+// ============= GOALS =============
+type Goal = { id: string; title: string; description: string | null; target_pct: number; progress_pct: number; deadline: string | null };
+
+function GoalsSection() {
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [title, setTitle] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase.from("goals").select("*").order("created_at", { ascending: false });
+    setGoals((data ?? []) as Goal[]);
+    setLoading(false);
+  }
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    const { data: u } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from("goals").insert({
+      user_id: u.user!.id, title: title.trim(), deadline: deadline || null,
+    }).select("*").single();
+    if (error) toast.error(error.message);
+    else if (data) {
+      setGoals((g) => [data as Goal, ...g]);
+      setTitle(""); setDeadline("");
+    }
+  }
+
+  async function updateProgress(g: Goal, pct: number) {
+    const clamped = Math.max(0, Math.min(100, pct));
+    setGoals((arr) => arr.map((x) => (x.id === g.id ? { ...x, progress_pct: clamped } : x)));
+    await supabase.from("goals").update({ progress_pct: clamped }).eq("id", g.id);
+  }
+
+  async function remove(id: string) {
+    setGoals((arr) => arr.filter((x) => x.id !== id));
+    await supabase.from("goals").delete().eq("id", id);
+  }
+
+  return (
+    <div>
+      <form onSubmit={add} className="mb-6 rounded-2xl border border-border bg-card p-5">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например: пробежать марафон"
+          className="mb-3 h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus:border-foreground" />
+        <div className="mb-3 flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">Дедлайн</span>
+          <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)}
+            className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+        </div>
+        <button type="submit" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background">
+          <Plus className="h-4 w-4" />Добавить цель
+        </button>
+      </form>
+
+      {loading ? <Loader /> : goals.length === 0 ? <Empty text="Поставь первую цель — большую или маленькую." /> : (
+        <ul className="flex flex-col gap-3">
+          <AnimatePresence initial={false}>
+            {goals.map((g) => (
+              <motion.li key={g.id} layout
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -10 }}
+                className="group rounded-2xl border border-border bg-card p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{g.title}</div>
+                    {g.deadline && <div className="mt-0.5 text-xs text-muted-foreground">до {g.deadline}</div>}
+                  </div>
+                  <div className="font-serif text-2xl tracking-tight">{g.progress_pct}<span className="text-sm text-muted-foreground">%</span></div>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
+                  <motion.div className="h-full bg-foreground" initial={{ width: 0 }} animate={{ width: `${g.progress_pct}%` }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} />
+                </div>
+                <input type="range" min={0} max={100} value={g.progress_pct}
+                  onChange={(e) => updateProgress(g, parseInt(e.target.value))}
+                  className="mt-3 w-full accent-foreground" />
+                <button onClick={() => remove(g.id)} className="mt-2 text-xs text-muted-foreground hover:text-destructive">Удалить</button>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ============= SETTINGS =============
+function SettingsSection() {
+  const [name, setName] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      setEmail(u.user?.email ?? "");
+      const { data } = await supabase.from("profiles").select("display_name, age, gender").eq("id", u.user!.id).maybeSingle();
+      if (data) {
+        setName(data.display_name ?? "");
+        setAge(data.age ? String(data.age) : "");
+        setGender(data.gender ?? "");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase.from("profiles").update({
+      display_name: name.trim() || null,
+      age: age ? parseInt(age) : null,
+      gender: gender || null,
+    }).eq("id", u.user!.id);
+    if (error) toast.error(error.message);
+    else toast.success("Сохранено");
+    setSaving(false);
+  }
+
+  async function clearAi() {
+    if (!confirm("Очистить весь AI-разговор?")) return;
+    const { data: u } = await supabase.auth.getUser();
+    await supabase.from("ai_messages").delete().eq("user_id", u.user!.id);
+    toast.success("AI-разговор очищен");
+  }
+
+  if (loading) return <Loader />;
+
+  return (
+    <div className="space-y-4">
+      <Card title="Профиль">
+        <div className="space-y-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Имя</span>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted-foreground">Возраст</span>
+              <input type="number" value={age} onChange={(e) => setAge(e.target.value)}
+                className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted-foreground">Пол</span>
+              <select value={gender} onChange={(e) => setGender(e.target.value)}
+                className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground">
+                <option value="">—</option>
+                <option value="male">Мужской</option>
+                <option value="female">Женский</option>
+                <option value="other">Другое</option>
+              </select>
+            </label>
+          </div>
+          <div className="text-xs text-muted-foreground">Почта: {email}</div>
+          <button onClick={save} disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40">
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}Сохранить
+          </button>
+        </div>
+      </Card>
+
+      <Card title="Внешний вид">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Тема</span>
+          <ThemeToggle />
+        </div>
+      </Card>
+
+      <Card title="Данные">
+        <button onClick={clearAi} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-border text-sm hover:bg-accent">
+          <RotateCw className="h-4 w-4" />Очистить AI-чат
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+
 function Loader() {
   return <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>;
 }
