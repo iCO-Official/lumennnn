@@ -127,7 +127,7 @@ ${data.text}
     return { inserted: inserted?.length ?? 0, tasks: inserted ?? [] };
   });
 
-
+export const analyzeWeek = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
