@@ -7,12 +7,12 @@ import { LumenLogo } from "@/components/lumen-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Check, Plus, LogOut, Loader2, Trash2, Calendar, Moon, Activity,
-  Dumbbell, NotebookPen, Sparkles, BarChart3, Send, RotateCw,
+  Dumbbell, NotebookPen, Sparkles, BarChart3, Send, RotateCw, Target, Settings as SettingsIcon, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { chatWithAi, resetAiChat, analyzeWeek } from "@/lib/ai.functions";
+import { chatWithAi, resetAiChat, analyzeWeek, parsePlanText } from "@/lib/ai.functions";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Area, AreaChart,
 } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -20,16 +20,18 @@ export const Route = createFileRoute("/_authenticated/app")({
   component: AppPage,
 });
 
-type Section = "plans" | "journal" | "sleep" | "workouts" | "health" | "stats" | "ai";
+type Section = "plans" | "goals" | "journal" | "sleep" | "workouts" | "health" | "stats" | "ai" | "settings";
 
 const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "plans", label: "Планы", icon: Calendar },
+  { id: "goals", label: "Цели", icon: Target },
   { id: "journal", label: "Дневник", icon: NotebookPen },
   { id: "sleep", label: "Сон", icon: Moon },
   { id: "workouts", label: "Тренировки", icon: Dumbbell },
   { id: "health", label: "Здоровье", icon: Activity },
   { id: "stats", label: "Статистика", icon: BarChart3 },
   { id: "ai", label: "AI-друг", icon: Sparkles },
+  { id: "settings", label: "Настройки", icon: SettingsIcon },
 ];
 
 function AppPage() {
@@ -49,13 +51,13 @@ function AppPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 bg-grid opacity-30" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[400px] bg-glow" />
+    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+      <div className="aurora-bg" />
+      <div className="pointer-events-none absolute inset-0 bg-grid opacity-20" />
 
-      <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-6 sm:px-8">
-        <LumenLogo />
-        <div className="flex items-center gap-2">
+      <header className="pt-safe relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 sm:px-8">
+        <div className="pt-4"><LumenLogo /></div>
+        <div className="flex items-center gap-2 pt-4">
           <ThemeToggle />
           <button
             onClick={signOut}
@@ -67,19 +69,19 @@ function AppPage() {
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-4xl px-5 pb-32 pt-8 sm:px-8">
-        <div className="mb-6">
+      <main className="pb-safe relative z-10 mx-auto max-w-4xl px-5 pb-24 pt-8 sm:px-8">
+        <motion.div className="mb-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className="text-sm text-muted-foreground">
             <span translate="no">{greeting()}</span>{name ? ", " + name : ""}.
           </div>
           <h1 className="mt-1 font-serif text-3xl tracking-tight sm:text-4xl">
             <span translate="no">{todayLabel()}</span>
           </h1>
-        </div>
+        </motion.div>
 
         {/* Section tabs */}
-        <div className="-mx-5 mb-6 overflow-x-auto px-5 sm:mx-0 sm:px-0">
-          <div className="inline-flex gap-1.5 rounded-full border border-border bg-card p-1">
+        <div className="-mx-5 mb-6 overflow-x-auto px-5 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="inline-flex gap-1.5 rounded-full border border-border bg-card/80 p-1 backdrop-blur">
             {SECTIONS.map((s) => {
               const Icon = s.icon;
               const active = section === s.id;
@@ -109,24 +111,27 @@ function AppPage() {
         <AnimatePresence mode="wait">
           <motion.div
             key={section}
-            initial={{ opacity: 0, y: 6 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
           >
             {section === "plans" && <PlansSection />}
+            {section === "goals" && <GoalsSection />}
             {section === "journal" && <JournalSection />}
             {section === "sleep" && <SleepSection />}
             {section === "workouts" && <WorkoutsSection />}
             {section === "health" && <HealthSection />}
             {section === "stats" && <StatsSection />}
             {section === "ai" && <AiSection />}
+            {section === "settings" && <SettingsSection />}
           </motion.div>
         </AnimatePresence>
       </main>
     </div>
   );
 }
+
 
 // ============= PLANS =============
 type Scope = "day" | "week" | "month";
@@ -138,6 +143,10 @@ function PlansSection() {
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiText, setAiText] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const parsePlan = useServerFn(parsePlanText);
 
   useEffect(() => { load(); }, []);
 
@@ -222,7 +231,7 @@ function PlansSection() {
         ))}
       </div>
 
-      <form onSubmit={add} className="mb-6 flex gap-2">
+      <form onSubmit={add} className="mb-3 flex gap-2">
         <input
           type="text"
           placeholder={`Добавить задачу…`}
@@ -234,6 +243,51 @@ function PlansSection() {
           {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-5 w-5" />}
         </button>
       </form>
+
+      <button
+        type="button"
+        onClick={() => setAiOpen((v) => !v)}
+        className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <Wand2 className="h-3.5 w-3.5" /> {aiOpen ? "Закрыть AI-разбор" : "AI: распознать план из текста"}
+      </button>
+      <AnimatePresence>
+        {aiOpen && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-4 overflow-hidden">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <textarea
+                value={aiText}
+                onChange={(e) => setAiText(e.target.value)}
+                rows={4}
+                placeholder="Напиши план словами: «утром бег 5км, потом созвон с командой, вечером прочитать главу»"
+                className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+              <button
+                type="button"
+                disabled={aiBusy || !aiText.trim()}
+                onClick={async () => {
+                  setAiBusy(true);
+                  try {
+                    const r = await parsePlan({ data: { text: aiText.trim(), scope } });
+                    if (r.inserted) {
+                      setTasks((t) => [...t, ...(r.tasks as Task[])]);
+                      toast.success(`Добавлено: ${r.inserted}`);
+                      setAiText(""); setAiOpen(false);
+                    } else toast.error("AI не нашёл задач в тексте");
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Ошибка");
+                  } finally { setAiBusy(false); }
+                }}
+                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40"
+              >
+                {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                Распознать и добавить
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
 
       {loading ? (
         <Loader />
@@ -370,10 +424,13 @@ function moodEmoji(m: number | null) {
 }
 
 // ============= SLEEP =============
-type Sleep = { id: string; log_date: string; hours: number; quality: number | null };
+type Sleep = { id: string; log_date: string; hours: number; quality: number | null; bedtime: string | null; wake_time: string | null };
 
 function SleepSection() {
   const [logs, setLogs] = useState<Sleep[]>([]);
+  const [mode, setMode] = useState<"auto" | "manual">("auto");
+  const [bedtime, setBedtime] = useState("23:00");
+  const [wake, setWake] = useState("07:00");
   const [hours, setHours] = useState("8");
   const [quality, setQuality] = useState(3);
   const [loading, setLoading] = useState(true);
@@ -387,16 +444,41 @@ function SleepSection() {
     setLoading(false);
   }
 
+  // Auto-calc hours from bedtime → wake (assumes wake is after bedtime, even across midnight)
+  const autoHours = useMemo(() => {
+    const [bh, bm] = bedtime.split(":").map(Number);
+    const [wh, wm] = wake.split(":").map(Number);
+    if (isNaN(bh) || isNaN(wh)) return 0;
+    let diff = (wh * 60 + wm) - (bh * 60 + bm);
+    if (diff <= 0) diff += 24 * 60;
+    return Math.round((diff / 60) * 10) / 10;
+  }, [bedtime, wake]);
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const h = parseFloat(hours);
+    const h = mode === "auto" ? autoHours : parseFloat(hours);
     if (!h || h < 0 || h > 24) { toast.error("Часы выглядят странно"); return; }
     setSaving(true);
     const { data: u } = await supabase.auth.getUser();
     const today = new Date().toISOString().slice(0, 10);
+
+    let bedtimeIso: string | null = null;
+    let wakeIso: string | null = null;
+    if (mode === "auto") {
+      const todayD = new Date();
+      const [bh, bm] = bedtime.split(":").map(Number);
+      const [wh, wm] = wake.split(":").map(Number);
+      const bed = new Date(todayD); bed.setHours(bh, bm, 0, 0);
+      const wk = new Date(todayD); wk.setHours(wh, wm, 0, 0);
+      // bedtime usually previous day if wake < bedtime
+      if (wk <= bed) bed.setDate(bed.getDate() - 1);
+      bedtimeIso = bed.toISOString();
+      wakeIso = wk.toISOString();
+    }
+
     const { data, error } = await supabase
       .from("sleep_logs")
-      .upsert({ user_id: u.user!.id, hours: h, quality, log_date: today }, { onConflict: "user_id,log_date" })
+      .upsert({ user_id: u.user!.id, hours: h, quality, log_date: today, bedtime: bedtimeIso, wake_time: wakeIso }, { onConflict: "user_id,log_date" })
       .select("*").single();
     if (error) toast.error(error.message);
     else if (data) {
@@ -412,12 +494,42 @@ function SleepSection() {
   return (
     <div>
       <form onSubmit={save} className="mb-6 rounded-2xl border border-border bg-card p-5">
-        <div className="mb-1 text-xs text-muted-foreground">Сегодня я спал</div>
-        <div className="flex items-end gap-3">
-          <input type="number" step="0.5" min="0" max="24" value={hours} onChange={(e) => setHours(e.target.value)}
-            className="h-14 w-24 rounded-xl border border-input bg-background px-3 text-2xl font-serif outline-none focus:border-foreground" />
-          <span className="pb-2 text-sm text-muted-foreground">часов</span>
+        <div className="mb-4 inline-flex rounded-full border border-border p-1">
+          {(["auto", "manual"] as const).map((m) => (
+            <button key={m} type="button" onClick={() => setMode(m)}
+              className={`relative rounded-full px-4 py-1.5 text-xs transition-colors ${mode === m ? "text-background" : "text-muted-foreground"}`}>
+              {mode === m && <motion.span layoutId="sleep-mode" className="absolute inset-0 rounded-full bg-foreground" transition={{ type: "spring", duration: 0.4, bounce: 0.2 }} />}
+              <span className="relative z-10">{m === "auto" ? "По времени" : "Вручную"}</span>
+            </button>
+          ))}
         </div>
+
+        {mode === "auto" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted-foreground">Лёг</span>
+              <input type="time" value={bedtime} onChange={(e) => setBedtime(e.target.value)}
+                className="h-12 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus:border-foreground" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted-foreground">Проснулся</span>
+              <input type="time" value={wake} onChange={(e) => setWake(e.target.value)}
+                className="h-12 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus:border-foreground" />
+            </label>
+            <div className="col-span-2 mt-1 text-sm text-muted-foreground">
+              Lumen посчитает: <span className="font-serif text-2xl text-foreground">{autoHours}</span> ч
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mb-1 text-xs text-muted-foreground">Сегодня я спал</div>
+            <div className="flex items-end gap-3">
+              <input type="number" step="0.5" min="0" max="24" value={hours} onChange={(e) => setHours(e.target.value)}
+                className="h-14 w-24 rounded-xl border border-input bg-background px-3 text-2xl font-serif outline-none focus:border-foreground" />
+              <span className="pb-2 text-sm text-muted-foreground">часов</span>
+            </div>
+          </>
+        )}
         <div className="mt-4">
           <div className="mb-2 text-xs text-muted-foreground">Качество</div>
           <MoodPicker value={quality} onChange={setQuality} />
@@ -426,6 +538,7 @@ function SleepSection() {
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}Сохранить
         </button>
       </form>
+
 
       <div className="mb-6 rounded-2xl border border-border bg-card p-5">
         <div className="mb-3 flex items-center justify-between">
@@ -683,6 +796,20 @@ function StatsSection() {
   const moodChart = [...data.health].reverse().map((h) => ({ date: h.log_date.slice(5), mood: h.mood, energy: h.energy }));
   const sleepChart = [...data.sleep].reverse().map((l) => ({ date: l.log_date.slice(5), hours: Number(l.hours) }));
 
+  // Daily completion % over last 14 days
+  const completionChart = useMemo(() => {
+    const days: { date: string; pct: number; done: number; total: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      const dayTasks = data.tasks.filter((t) => t.scheduled_for === iso);
+      const done = dayTasks.filter((t) => t.completed).length;
+      const total = dayTasks.length;
+      days.push({ date: iso.slice(5), pct: total ? Math.round((done / total) * 100) : 0, done, total });
+    }
+    return days;
+  }, [data.tasks]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -691,6 +818,25 @@ function StatsSection() {
         <Stat label="Тренировок" value={String(workoutsCount)} sub="за 2 недели" />
         <Stat label="Настроение" value={moodAvg} sub="из 5" />
       </div>
+
+      <Card title="Выполнение задач, % по дням">
+        <div className="h-44">
+          <ResponsiveContainer><AreaChart data={completionChart}>
+            <defs>
+              <linearGradient id="pctGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--foreground)" stopOpacity={0.5} />
+                <stop offset="100%" stopColor="var(--foreground)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+            <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={10} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={10} domain={[0, 100]} />
+            <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 12 }} />
+            <Area type="monotone" dataKey="pct" stroke="var(--foreground)" strokeWidth={2} fill="url(#pctGrad)" />
+          </AreaChart></ResponsiveContainer>
+        </div>
+      </Card>
+
 
       {sleepChart.length > 0 && (
         <Card title="Сон, часы">
@@ -879,7 +1025,188 @@ function AiSection() {
   );
 }
 
-// ============= shared =============
+// ============= GOALS =============
+type Goal = { id: string; title: string; description: string | null; target_pct: number; progress_pct: number; deadline: string | null };
+
+function GoalsSection() {
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [title, setTitle] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { load(); }, []);
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase.from("goals").select("*").order("created_at", { ascending: false });
+    setGoals((data ?? []) as Goal[]);
+    setLoading(false);
+  }
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    const { data: u } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from("goals").insert({
+      user_id: u.user!.id, title: title.trim(), deadline: deadline || null,
+    }).select("*").single();
+    if (error) toast.error(error.message);
+    else if (data) {
+      setGoals((g) => [data as Goal, ...g]);
+      setTitle(""); setDeadline("");
+    }
+  }
+
+  async function updateProgress(g: Goal, pct: number) {
+    const clamped = Math.max(0, Math.min(100, pct));
+    setGoals((arr) => arr.map((x) => (x.id === g.id ? { ...x, progress_pct: clamped } : x)));
+    await supabase.from("goals").update({ progress_pct: clamped }).eq("id", g.id);
+  }
+
+  async function remove(id: string) {
+    setGoals((arr) => arr.filter((x) => x.id !== id));
+    await supabase.from("goals").delete().eq("id", id);
+  }
+
+  return (
+    <div>
+      <form onSubmit={add} className="mb-6 rounded-2xl border border-border bg-card p-5">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например: пробежать марафон"
+          className="mb-3 h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus:border-foreground" />
+        <div className="mb-3 flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">Дедлайн</span>
+          <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)}
+            className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+        </div>
+        <button type="submit" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background">
+          <Plus className="h-4 w-4" />Добавить цель
+        </button>
+      </form>
+
+      {loading ? <Loader /> : goals.length === 0 ? <Empty text="Поставь первую цель — большую или маленькую." /> : (
+        <ul className="flex flex-col gap-3">
+          <AnimatePresence initial={false}>
+            {goals.map((g) => (
+              <motion.li key={g.id} layout
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -10 }}
+                className="group rounded-2xl border border-border bg-card p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{g.title}</div>
+                    {g.deadline && <div className="mt-0.5 text-xs text-muted-foreground">до {g.deadline}</div>}
+                  </div>
+                  <div className="font-serif text-2xl tracking-tight">{g.progress_pct}<span className="text-sm text-muted-foreground">%</span></div>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
+                  <motion.div className="h-full bg-foreground" initial={{ width: 0 }} animate={{ width: `${g.progress_pct}%` }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} />
+                </div>
+                <input type="range" min={0} max={100} value={g.progress_pct}
+                  onChange={(e) => updateProgress(g, parseInt(e.target.value))}
+                  className="mt-3 w-full accent-foreground" />
+                <button onClick={() => remove(g.id)} className="mt-2 text-xs text-muted-foreground hover:text-destructive">Удалить</button>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ============= SETTINGS =============
+function SettingsSection() {
+  const [name, setName] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      setEmail(u.user?.email ?? "");
+      const { data } = await supabase.from("profiles").select("display_name, age, gender").eq("id", u.user!.id).maybeSingle();
+      if (data) {
+        setName(data.display_name ?? "");
+        setAge(data.age ? String(data.age) : "");
+        setGender(data.gender ?? "");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase.from("profiles").update({
+      display_name: name.trim() || null,
+      age: age ? parseInt(age) : null,
+      gender: gender || null,
+    }).eq("id", u.user!.id);
+    if (error) toast.error(error.message);
+    else toast.success("Сохранено");
+    setSaving(false);
+  }
+
+  async function clearAi() {
+    if (!confirm("Очистить весь AI-разговор?")) return;
+    const { data: u } = await supabase.auth.getUser();
+    await supabase.from("ai_messages").delete().eq("user_id", u.user!.id);
+    toast.success("AI-разговор очищен");
+  }
+
+  if (loading) return <Loader />;
+
+  return (
+    <div className="space-y-4">
+      <Card title="Профиль">
+        <div className="space-y-3">
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Имя</span>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted-foreground">Возраст</span>
+              <input type="number" value={age} onChange={(e) => setAge(e.target.value)}
+                className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-muted-foreground">Пол</span>
+              <select value={gender} onChange={(e) => setGender(e.target.value)}
+                className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground">
+                <option value="">—</option>
+                <option value="male">Мужской</option>
+                <option value="female">Женский</option>
+                <option value="other">Другое</option>
+              </select>
+            </label>
+          </div>
+          <div className="text-xs text-muted-foreground">Почта: {email}</div>
+          <button onClick={save} disabled={saving} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40">
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}Сохранить
+          </button>
+        </div>
+      </Card>
+
+      <Card title="Внешний вид">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Тема</span>
+          <ThemeToggle />
+        </div>
+      </Card>
+
+      <Card title="Данные">
+        <button onClick={clearAi} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-border text-sm hover:bg-accent">
+          <RotateCw className="h-4 w-4" />Очистить AI-чат
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+
 function Loader() {
   return <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>;
 }

@@ -88,6 +88,45 @@ export const resetAiChat = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const parsePlanText = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    text: z.string().min(1).max(4000),
+    scope: z.enum(["day", "week", "month"]).default("day"),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const prompt = `Тебе дан свободный текст плана от пользователя. Извлеки конкретные задачи как короткие пункты (без нумерации). Верни строго JSON-массив строк, без markdown, без пояснений. Пример: ["Тренировка 18:00","Купить продукты","Прочитать главу"]
+
+Текст:
+"""
+${data.text}
+"""`;
+
+    const reply = await callGateway([
+      { role: "system", content: "Ты возвращаешь только валидный JSON-массив строк." },
+      { role: "user", content: prompt },
+    ]);
+
+    let titles: string[] = [];
+    try {
+      const cleaned = reply.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed)) titles = parsed.filter((s) => typeof s === "string" && s.trim()).map((s: string) => s.trim()).slice(0, 30);
+    } catch {
+      // fallback: split lines
+      titles = reply.split("\n").map((s) => s.replace(/^[-*\d.\s)]+/, "").trim()).filter(Boolean).slice(0, 30);
+    }
+
+    if (titles.length === 0) return { inserted: 0, tasks: [] };
+
+    const rows = titles.map((title) => ({ user_id: userId, title, scope: data.scope }));
+    const { data: inserted, error } = await supabase.from("tasks").insert(rows).select("id, title, scope, completed, scheduled_for");
+    if (error) throw new Error(error.message);
+    return { inserted: inserted?.length ?? 0, tasks: inserted ?? [] };
+  });
+
 export const analyzeWeek = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

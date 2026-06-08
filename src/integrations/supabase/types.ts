@@ -38,6 +38,42 @@ export type Database = {
         }
         Relationships: []
       }
+      goals: {
+        Row: {
+          created_at: string
+          deadline: string | null
+          description: string | null
+          id: string
+          progress_pct: number
+          target_pct: number
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          progress_pct?: number
+          target_pct?: number
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          progress_pct?: number
+          target_pct?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       health_logs: {
         Row: {
           created_at: string
@@ -142,6 +178,7 @@ export type Database = {
       }
       sleep_logs: {
         Row: {
+          bedtime: string | null
           created_at: string
           hours: number
           id: string
@@ -150,8 +187,10 @@ export type Database = {
           quality: number | null
           updated_at: string
           user_id: string
+          wake_time: string | null
         }
         Insert: {
+          bedtime?: string | null
           created_at?: string
           hours: number
           id?: string
@@ -160,8 +199,10 @@ export type Database = {
           quality?: number | null
           updated_at?: string
           user_id: string
+          wake_time?: string | null
         }
         Update: {
+          bedtime?: string | null
           created_at?: string
           hours?: number
           id?: string
@@ -170,6 +211,7 @@ export type Database = {
           quality?: number | null
           updated_at?: string
           user_id?: string
+          wake_time?: string | null
         }
         Relationships: []
       }
