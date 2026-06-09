@@ -147,6 +147,7 @@ function PlansSection() {
 
   async function load() {
     setLoading(true);
+    await seedRoutinesForToday();
     const { data, error } = await supabase
       .from("tasks")
       .select("id, title, scope, completed, scheduled_for")
@@ -154,6 +155,7 @@ function PlansSection() {
     if (error) toast.error(error.message);
     else setTasks((data ?? []) as Task[]);
     setLoading(false);
+
   }
 
   async function add(e: React.FormEvent) {
