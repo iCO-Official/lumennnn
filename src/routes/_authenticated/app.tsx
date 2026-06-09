@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { motion, AnimatePresence } from "motion/react";
@@ -6,11 +6,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { LumenLogo } from "@/components/lumen-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
-  Check, Plus, LogOut, Loader2, Trash2, Calendar, Moon, Activity,
+  Check, Plus, Loader2, Trash2, Calendar, Moon, Activity,
   Dumbbell, NotebookPen, Sparkles, BarChart3, Send, RotateCw,
+  CalendarClock, Settings as SettingsIcon, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { chatWithAi, resetAiChat, analyzeWeek } from "@/lib/ai.functions";
+import { chatWithAi, resetAiChat, analyzeWeek, generateSchedule } from "@/lib/ai.functions";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -20,10 +21,12 @@ export const Route = createFileRoute("/_authenticated/app")({
   component: AppPage,
 });
 
-type Section = "plans" | "journal" | "sleep" | "workouts" | "health" | "stats" | "ai";
+
+type Section = "plans" | "routine" | "journal" | "sleep" | "workouts" | "health" | "stats" | "ai";
 
 const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "plans", label: "Планы", icon: Calendar },
+  { id: "routine", label: "Рутина", icon: CalendarClock },
   { id: "journal", label: "Дневник", icon: NotebookPen },
   { id: "sleep", label: "Сон", icon: Moon },
   { id: "workouts", label: "Тренировки", icon: Dumbbell },
@@ -32,50 +35,49 @@ const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ classN
   { id: "ai", label: "AI-друг", icon: Sparkles },
 ];
 
+
 function AppPage() {
-  const navigate = useNavigate();
   const [section, setSection] = useState<Section>("plans");
   const [name, setName] = useState("");
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setName(data.user?.user_metadata?.name || data.user?.email?.split("@")[0] || "");
-    });
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const { data } = await supabase.from("profiles").select("display_name").eq("id", u.user.id).maybeSingle();
+      setName(data?.display_name || u.user.user_metadata?.name || u.user.email?.split("@")[0] || "");
+    })();
   }, []);
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    navigate({ to: "/" });
-  }
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 bg-grid opacity-30" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[400px] bg-glow" />
 
-      <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-6 sm:px-8">
+      <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-3 sm:px-8 sm:pt-4">
         <LumenLogo />
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <button
-            onClick={signOut}
-            aria-label="Выйти"
+          <Link
+            to="/app/settings"
+            aria-label="Настройки"
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/40 backdrop-blur transition-colors hover:bg-accent"
           >
-            <LogOut className="h-4 w-4" />
-          </button>
+            <SettingsIcon className="h-4 w-4" />
+          </Link>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-4xl px-5 pb-32 pt-8 sm:px-8">
-        <div className="mb-6">
+      <main className="relative z-10 mx-auto max-w-4xl px-5 pb-32 pt-4 sm:px-8 sm:pt-6">
+        <div className="mb-5">
           <div className="text-sm text-muted-foreground">
             <span translate="no">{greeting()}</span>{name ? ", " + name : ""}.
           </div>
-          <h1 className="mt-1 font-serif text-3xl tracking-tight sm:text-4xl">
+          <h1 className="mt-1 font-serif text-2xl tracking-tight sm:text-3xl">
             <span translate="no">{todayLabel()}</span>
           </h1>
         </div>
+
 
         {/* Section tabs */}
         <div className="-mx-5 mb-6 overflow-x-auto px-5 sm:mx-0 sm:px-0">
