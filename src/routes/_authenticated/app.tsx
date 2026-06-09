@@ -261,9 +261,10 @@ function PlansSection() {
                   {task.completed && <Check className="h-3 w-3" strokeWidth={3} />}
                 </button>
                 <span className={`flex-1 text-sm ${task.completed ? "text-muted-foreground line-through" : ""}`}>{task.title}</span>
-                <button onClick={() => remove(task)} aria-label="Удалить" className="opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100">
+                <button onClick={() => remove(task)} aria-label="Удалить" className="text-muted-foreground transition-colors hover:text-destructive">
                   <Trash2 className="h-4 w-4" />
                 </button>
+
               </motion.li>
             ))}
           </AnimatePresence>
