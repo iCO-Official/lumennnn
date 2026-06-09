@@ -176,6 +176,42 @@ export type Database = {
         }
         Relationships: []
       }
+      routines: {
+        Row: {
+          active: boolean
+          created_at: string
+          day_of_week: number | null
+          id: string
+          sort_order: number
+          time_of_day: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          day_of_week?: number | null
+          id?: string
+          sort_order?: number
+          time_of_day?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          day_of_week?: number | null
+          id?: string
+          sort_order?: number
+          time_of_day?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       sleep_logs: {
         Row: {
           bedtime: string | null
@@ -222,6 +258,7 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
+          routine_id: string | null
           scheduled_for: string
           scope: string
           title: string
@@ -234,6 +271,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          routine_id?: string | null
           scheduled_for?: string
           scope?: string
           title: string
@@ -246,13 +284,22 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          routine_id?: string | null
           scheduled_for?: string
           scope?: string
           title?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tasks_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workouts: {
         Row: {
