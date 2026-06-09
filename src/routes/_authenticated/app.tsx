@@ -117,12 +117,14 @@ function AppPage() {
             transition={{ duration: 0.2 }}
           >
             {section === "plans" && <PlansSection />}
+            {section === "routine" && <RoutinesSection />}
             {section === "journal" && <JournalSection />}
             {section === "sleep" && <SleepSection />}
             {section === "workouts" && <WorkoutsSection />}
             {section === "health" && <HealthSection />}
             {section === "stats" && <StatsSection />}
             {section === "ai" && <AiSection />}
+
           </motion.div>
         </AnimatePresence>
       </main>
