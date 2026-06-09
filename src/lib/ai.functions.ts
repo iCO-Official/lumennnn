@@ -178,12 +178,10 @@ export const generateSchedule = createServerFn({ method: "POST" })
     if (!items.length) throw new Error("Пустое расписание.");
 
     if (data.replace) {
-      await supabase.from("routines").delete().eq("user_id", userId).eq("day_of_week" as never, data.dayOfWeek as never);
-      if (data.dayOfWeek === null) {
-        // delete also covers null via eq above? eq with null doesn't match. handle:
-        await supabase.from("routines").delete().eq("user_id", userId).is("day_of_week", null);
-      }
+      const del = supabase.from("routines").delete().eq("user_id", userId);
+      await (data.dayOfWeek === null ? del.is("day_of_week", null) : del.eq("day_of_week", data.dayOfWeek));
     }
+
 
     const rows = items.map((it, i) => ({
       user_id: userId,
