@@ -910,3 +910,213 @@ function todayLabel() {
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
+
+// ============= ROUTINES =============
+type Routine = { id: string; title: string; day_of_week: number | null; time_of_day: string | null; sort_order: number };
+
+const DAY_LABELS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+const DAY_LABELS_FULL = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
+
+async function seedRoutinesForToday() {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) return;
+  const today = new Date();
+  const dow = today.getDay();
+  const todayIso = today.toISOString().slice(0, 10);
+
+  const { data: routines } = await supabase
+    .from("routines")
+    .select("id, title")
+    .eq("user_id", u.user.id)
+    .eq("active", true)
+    .or(`day_of_week.eq.${dow},day_of_week.is.null`);
+
+  if (!routines || routines.length === 0) return;
+
+  const { data: existing } = await supabase
+    .from("tasks")
+    .select("routine_id")
+    .eq("user_id", u.user.id)
+    .eq("scheduled_for", todayIso)
+    .not("routine_id", "is", null);
+
+  const existingIds = new Set((existing ?? []).map((t) => t.routine_id));
+  const toInsert = routines
+    .filter((r) => !existingIds.has(r.id))
+    .map((r) => ({
+      user_id: u.user!.id,
+      title: r.title,
+      scope: "day",
+      scheduled_for: todayIso,
+      routine_id: r.id,
+    }));
+
+  if (toInsert.length > 0) {
+    await supabase.from("tasks").insert(toInsert);
+  }
+}
+
+function RoutinesSection() {
+  const [day, setDay] = useState<number | null>(new Date().getDay());
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newTitle, setNewTitle] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const generate = useServerFn(generateSchedule);
+
+  useEffect(() => { load(); }, [day]);
+
+  async function load() {
+    setLoading(true);
+    const q = supabase.from("routines").select("*").order("sort_order", { ascending: true });
+    const { data } = await (day === null ? q.is("day_of_week", null) : q.eq("day_of_week", day));
+    setRoutines((data ?? []) as Routine[]);
+    setLoading(false);
+  }
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+    setAdding(true);
+    const { data: u } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+      .from("routines")
+      .insert({ user_id: u.user!.id, title: newTitle.trim(), day_of_week: day, sort_order: routines.length })
+      .select("*").single();
+    if (error) toast.error(error.message);
+    else if (data) setRoutines((r) => [...r, data as Routine]);
+    setNewTitle("");
+    setAdding(false);
+  }
+
+  async function remove(r: Routine) {
+    setRoutines((rs) => rs.filter((x) => x.id !== r.id));
+    await supabase.from("routines").delete().eq("id", r.id);
+  }
+
+  async function runAi() {
+    if (!aiPrompt.trim()) return;
+    setAiLoading(true);
+    try {
+      const r = await generate({ data: { prompt: aiPrompt.trim(), dayOfWeek: day, replace: true } });
+      toast.success(`Создано ${r.count} дел`);
+      setAiPrompt("");
+      setAiOpen(false);
+      load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  const dayLabel = day === null ? "каждый день" : DAY_LABELS_FULL[day];
+
+  return (
+    <div>
+      <div className="mb-4 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+        Постоянные дела, которые автоматически появятся в плане на нужный день недели.
+      </div>
+
+      <div className="-mx-5 mb-4 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+        <div className="inline-flex gap-1 rounded-full border border-border bg-card p-1">
+          <button
+            onClick={() => setDay(null)}
+            className={`relative rounded-full px-3 py-1.5 text-xs transition-colors ${day === null ? "text-background" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {day === null && <motion.span layoutId="day-pill" className="absolute inset-0 rounded-full bg-foreground" />}
+            <span className="relative z-10">Каждый день</span>
+          </button>
+          {DAY_LABELS.map((label, i) => (
+            <button
+              key={i}
+              onClick={() => setDay(i)}
+              className={`relative rounded-full px-3 py-1.5 text-xs transition-colors ${day === i ? "text-background" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {day === i && <motion.span layoutId="day-pill" className="absolute inset-0 rounded-full bg-foreground" />}
+              <span className="relative z-10">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={() => setAiOpen((v) => !v)}
+        className="mb-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-border bg-card text-sm hover:bg-accent"
+      >
+        <Wand2 className="h-4 w-4" />
+        Создать расписание через AI
+      </button>
+
+      <AnimatePresence>
+        {aiOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+            className="mb-4 overflow-hidden"
+          >
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="mb-2 text-xs text-muted-foreground">
+                Опиши свой день ({dayLabel}) — AI превратит это в расписание и заменит текущее.
+              </div>
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                rows={4}
+                placeholder="Например: подъём в 7, зарядка, душ, завтрак, работа с 9 до 18, обед в 13, спорт в 19, ужин, чтение, сон в 23"
+                className="w-full resize-none rounded-xl border border-input bg-background p-3 text-sm outline-none focus:border-foreground"
+              />
+              <button
+                onClick={runAi}
+                disabled={aiLoading || !aiPrompt.trim()}
+                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40"
+              >
+                {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {aiLoading ? "Делаю расписание…" : "Сгенерировать"}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <form onSubmit={add} className="mb-4 flex gap-2">
+        <input
+          type="text"
+          placeholder="Добавить дело в расписание…"
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          className="h-12 flex-1 rounded-2xl border border-input bg-card px-4 text-sm outline-none focus:border-foreground"
+        />
+        <button type="submit" disabled={adding || !newTitle.trim()} className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-foreground text-background disabled:opacity-40">
+          {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-5 w-5" />}
+        </button>
+      </form>
+
+      {loading ? <Loader /> : routines.length === 0 ? (
+        <Empty text="Тут пока пусто. Добавь дела или сгенерируй через AI." />
+      ) : (
+        <ul className="flex flex-col gap-2">
+          <AnimatePresence initial={false}>
+            {routines.map((r) => (
+              <motion.li
+                key={r.id} layout
+                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -10 }}
+                className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3"
+              >
+                {r.time_of_day && (
+                  <span className="font-mono text-xs text-muted-foreground tabular-nums">{r.time_of_day}</span>
+                )}
+                <span className="flex-1 text-sm">{r.title}</span>
+                <button onClick={() => remove(r)} aria-label="Удалить" className="text-muted-foreground hover:text-destructive">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
+    </div>
+  );
+}
