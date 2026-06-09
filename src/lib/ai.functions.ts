@@ -137,3 +137,63 @@ ${JSON.stringify(summary, null, 2)}
 
     return { analysis: reply };
   });
+
+export const generateSchedule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      prompt: z.string().min(1).max(4000),
+      dayOfWeek: z.number().int().min(0).max(6).nullable(),
+      replace: z.boolean().default(true),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const system = `Ты — помощник, который преобразует описание распорядка дня в JSON.
+ОТВЕЧАЙ ТОЛЬКО валидным JSON-объектом, без markdown, без комментариев.
+Формат строго:
+{"items":[{"title":"строка до 80 символов","time":"HH:MM или null"}]}
+Если время не указано — поставь null. Сохраняй порядок дел.`;
+
+    const dayLabel = data.dayOfWeek === null
+      ? "каждый день"
+      : ["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"][data.dayOfWeek];
+
+    const reply = await callGateway([
+      { role: "system", content: system },
+      { role: "user", content: `Сделай расписание на ${dayLabel}. Описание пользователя:\n\n${data.prompt}` },
+    ]);
+
+    // extract JSON
+    const match = reply.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("AI не вернул расписание. Попробуй переформулировать.");
+    let parsed: { items: { title: string; time: string | null }[] };
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch {
+      throw new Error("Не удалось разобрать ответ AI.");
+    }
+    const items = (parsed.items || []).filter((x) => x && typeof x.title === "string").slice(0, 50);
+    if (!items.length) throw new Error("Пустое расписание.");
+
+    if (data.replace) {
+      await supabase.from("routines").delete().eq("user_id", userId).eq("day_of_week" as never, data.dayOfWeek as never);
+      if (data.dayOfWeek === null) {
+        // delete also covers null via eq above? eq with null doesn't match. handle:
+        await supabase.from("routines").delete().eq("user_id", userId).is("day_of_week", null);
+      }
+    }
+
+    const rows = items.map((it, i) => ({
+      user_id: userId,
+      title: it.title.slice(0, 200),
+      day_of_week: data.dayOfWeek,
+      time_of_day: it.time && /^\d{1,2}:\d{2}$/.test(it.time) ? it.time : null,
+      sort_order: i,
+    }));
+    const { error } = await supabase.from("routines").insert(rows);
+    if (error) throw new Error(error.message);
+
+    return { count: rows.length };
+  });
