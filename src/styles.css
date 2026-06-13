@@ -101,9 +101,12 @@
     font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
   ::selection { background: var(--color-foreground); color: var(--color-background); }
 }
+
 
 @utility font-serif { font-family: var(--font-serif); font-feature-settings: "liga"; }
 
