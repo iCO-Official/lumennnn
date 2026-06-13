@@ -30,6 +30,12 @@ const GENDERS = [
   { id: "other", label: "Другое" },
 ];
 
+const INTERESTS = [
+  "Спорт", "Киберспорт", "Питание", "Тренировки", "Учёба",
+  "Работа", "Мысли", "Чтение", "Медитация", "Финансы",
+  "Творчество", "Сон",
+];
+
 function AuthPage() {
   const { mode } = Route.useSearch();
   const navigate = useNavigate();
@@ -38,6 +44,7 @@ function AuthPage() {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState<string>("");
+  const [interests, setInterests] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [hasSession, setHasSession] = useState(false);
@@ -73,6 +80,7 @@ function AuthPage() {
               name: name.trim(),
               age: ageNum ? String(ageNum) : "",
               gender,
+              interests,
             },
           },
         });
@@ -201,6 +209,23 @@ function AuthPage() {
                       {g.label}
                     </button>
                   ))}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs text-muted-foreground">Что хочешь отслеживать? (можно несколько)</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {INTERESTS.map((tag) => {
+                      const active = interests.includes(tag);
+                      return (
+                        <button key={tag} type="button"
+                          onClick={() => setInterests((prev) => active ? prev.filter((t) => t !== tag) : [...prev, tag])}
+                          className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                            active ? "border-foreground bg-foreground text-background" : "border-input bg-background text-muted-foreground hover:text-foreground"
+                          }`}>
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </>
             )}

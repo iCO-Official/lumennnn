@@ -72,7 +72,7 @@ export const syncGaming = createServerFn({ method: "POST" })
       } catch (e) { errors.push(e instanceof Error ? e.message : "Faceit ошибка"); }
     }
 
-    const { error } = await supabase.from("gaming_stats").upsert(update);
+    const { error } = await supabase.from("gaming_stats").upsert(update as never);
     if (error) throw new Error(error.message);
     return { ok: true, errors };
   });
