@@ -53,13 +53,12 @@ function friendSystemPrompt(
 ${ctx.length ? "Что ты знаешь о собеседнике:\n" + ctx.join("\n") : ""}`;
 }
 
-async function loadUserContext(supabase: { from: (t: string) => { select: (s: string) => { eq: (k: string, v: string) => { maybeSingle?: () => Promise<{ data: unknown }>; order?: (c: string) => Promise<{ data: unknown }> } } } }, userId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadUserContext(supabase: any, userId: string) {
   const [profile, gaming, metrics] = await Promise.all([
-    sb.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
-    sb.from("gaming_stats").select("steam_total_minutes, steam_top_games, faceit_elo, faceit_level, faceit_kd, faceit_winrate").eq("user_id", userId).maybeSingle(),
-    sb.from("custom_metrics").select("name, unit").eq("user_id", userId).order("sort_order"),
+    supabase.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
+    supabase.from("gaming_stats").select("steam_total_minutes, steam_top_games, faceit_elo, faceit_level, faceit_kd, faceit_winrate").eq("user_id", userId).maybeSingle(),
+    supabase.from("custom_metrics").select("name, unit").eq("user_id", userId).order("sort_order"),
   ]);
   return { profile: profile?.data ?? null, gaming: gaming?.data ?? null, metrics: metrics?.data ?? [] };
 }
