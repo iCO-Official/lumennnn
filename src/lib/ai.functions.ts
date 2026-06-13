@@ -120,13 +120,14 @@ export const analyzeWeek = createServerFn({ method: "POST" })
     since.setDate(since.getDate() - 7);
     const sinceIso = since.toISOString().slice(0, 10);
 
-    const [tasks, sleep, workouts, health, journal, profile] = await Promise.all([
+    const [tasks, sleep, workouts, health, journal, customLogs, ctx] = await Promise.all([
       supabase.from("tasks").select("title, scope, completed, scheduled_for").eq("user_id", userId).gte("scheduled_for", sinceIso),
       supabase.from("sleep_logs").select("log_date, hours, quality").eq("user_id", userId).gte("log_date", sinceIso),
       supabase.from("workouts").select("title, kind, duration_min, intensity, workout_date").eq("user_id", userId).gte("workout_date", sinceIso),
       supabase.from("health_logs").select("log_date, mood, energy, water_ml, steps, weight_kg").eq("user_id", userId).gte("log_date", sinceIso),
       supabase.from("journal_entries").select("entry_date, mood, content").eq("user_id", userId).gte("entry_date", sinceIso),
-      supabase.from("profiles").select("display_name, age, gender").eq("id", userId).maybeSingle(),
+      supabase.from("custom_metric_logs").select("log_date, value_num, value_text, metric_id").eq("user_id", userId).gte("log_date", sinceIso),
+      loadUserContext(supabase, userId),
     ]);
 
     const summary = {
@@ -135,12 +136,19 @@ export const analyzeWeek = createServerFn({ method: "POST" })
       workouts: workouts.data ?? [],
       health: health.data ?? [],
       journal: journal.data ?? [],
+      customMetrics: ctx.metrics,
+      customLogs: customLogs.data ?? [],
+      gaming: ctx.gaming,
     };
 
+    const p = ctx.profile as { display_name?: string | null; age?: number | null; gender?: string | null; interests?: string[] | null } | null;
     const system = friendSystemPrompt(
-      profile.data?.display_name ?? null,
-      profile.data?.age ?? null,
-      profile.data?.gender ?? null,
+      p?.display_name ?? null,
+      p?.age ?? null,
+      p?.gender ?? null,
+      p?.interests ?? null,
+      ctx.gaming as Record<string, unknown> | null,
+      ctx.metrics as { name: string; unit: string | null }[],
     );
 
     const userPrompt = `Проанализируй мою неделю как друг. Вот данные в JSON:
