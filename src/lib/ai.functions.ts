@@ -25,11 +25,21 @@ async function callGateway(messages: Msg[]): Promise<string> {
   return data?.choices?.[0]?.message?.content ?? "";
 }
 
-function friendSystemPrompt(name: string | null, age: number | null, gender: string | null) {
+function friendSystemPrompt(
+  name: string | null,
+  age: number | null,
+  gender: string | null,
+  interests: string[] | null,
+  gaming: Record<string, unknown> | null,
+  customMetrics: { name: string; unit: string | null }[] | null,
+) {
   const ctx: string[] = [];
   if (name) ctx.push(`Имя: ${name}`);
   if (age) ctx.push(`Возраст: ${age}`);
   if (gender) ctx.push(`Пол: ${gender}`);
+  if (interests?.length) ctx.push(`Интересы: ${interests.join(", ")}`);
+  if (customMetrics?.length) ctx.push(`Свои трекеры: ${customMetrics.map((m) => m.name + (m.unit ? ` (${m.unit})` : "")).join(", ")}`);
+  if (gaming && Object.keys(gaming).length) ctx.push(`Гейминг: ${JSON.stringify(gaming)}`);
   return `Ты — Lumen, личный AI-друг, который помогает пользователю в его дневнике. Общайся как близкий друг: тепло, на «ты», без формальностей, без канцелярита, без "Как я могу помочь?".
 
 Стиль:
@@ -43,14 +53,25 @@ function friendSystemPrompt(name: string | null, age: number | null, gender: str
 ${ctx.length ? "Что ты знаешь о собеседнике:\n" + ctx.join("\n") : ""}`;
 }
 
+async function loadUserContext(supabase: { from: (t: string) => { select: (s: string) => { eq: (k: string, v: string) => { maybeSingle?: () => Promise<{ data: unknown }>; order?: (c: string) => Promise<{ data: unknown }> } } } }, userId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const [profile, gaming, metrics] = await Promise.all([
+    sb.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
+    sb.from("gaming_stats").select("steam_total_minutes, steam_top_games, faceit_elo, faceit_level, faceit_kd, faceit_winrate").eq("user_id", userId).maybeSingle(),
+    sb.from("custom_metrics").select("name, unit").eq("user_id", userId).order("sort_order"),
+  ]);
+  return { profile: profile?.data ?? null, gaming: gaming?.data ?? null, metrics: metrics?.data ?? [] };
+}
+
 export const chatWithAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ message: z.string().min(1).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const [{ data: profile }, { data: history }] = await Promise.all([
-      supabase.from("profiles").select("display_name, age, gender").eq("id", userId).maybeSingle(),
+    const [{ profile, gaming, metrics }, { data: history }] = await Promise.all([
+      loadUserContext(supabase, userId),
       supabase
         .from("ai_messages")
         .select("role, content")
@@ -59,10 +80,14 @@ export const chatWithAi = createServerFn({ method: "POST" })
         .limit(40),
     ]);
 
+    const p = profile as { display_name?: string | null; age?: number | null; gender?: string | null; interests?: string[] | null } | null;
     const system = friendSystemPrompt(
-      profile?.display_name ?? null,
-      profile?.age ?? null,
-      profile?.gender ?? null,
+      p?.display_name ?? null,
+      p?.age ?? null,
+      p?.gender ?? null,
+      p?.interests ?? null,
+      gaming as Record<string, unknown> | null,
+      metrics as { name: string; unit: string | null }[],
     );
 
     const messages: Msg[] = [
