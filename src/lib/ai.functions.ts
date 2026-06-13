@@ -25,21 +25,11 @@ async function callGateway(messages: Msg[]): Promise<string> {
   return data?.choices?.[0]?.message?.content ?? "";
 }
 
-function friendSystemPrompt(
-  name: string | null,
-  age: number | null,
-  gender: string | null,
-  interests: string[] | null,
-  gaming: Record<string, unknown> | null,
-  customMetrics: { name: string; unit: string | null }[] | null,
-) {
+function friendSystemPrompt(name: string | null, age: number | null, gender: string | null) {
   const ctx: string[] = [];
   if (name) ctx.push(`Имя: ${name}`);
   if (age) ctx.push(`Возраст: ${age}`);
   if (gender) ctx.push(`Пол: ${gender}`);
-  if (interests?.length) ctx.push(`Интересы: ${interests.join(", ")}`);
-  if (customMetrics?.length) ctx.push(`Свои трекеры: ${customMetrics.map((m) => m.name + (m.unit ? ` (${m.unit})` : "")).join(", ")}`);
-  if (gaming && Object.keys(gaming).length) ctx.push(`Гейминг: ${JSON.stringify(gaming)}`);
   return `Ты — Lumen, личный AI-друг, который помогает пользователю в его дневнике. Общайся как близкий друг: тепло, на «ты», без формальностей, без канцелярита, без "Как я могу помочь?".
 
 Стиль:
@@ -53,24 +43,14 @@ function friendSystemPrompt(
 ${ctx.length ? "Что ты знаешь о собеседнике:\n" + ctx.join("\n") : ""}`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loadUserContext(supabase: any, userId: string) {
-  const [profile, gaming, metrics] = await Promise.all([
-    supabase.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
-    supabase.from("gaming_stats").select("steam_total_minutes, steam_top_games, faceit_elo, faceit_level, faceit_kd, faceit_winrate").eq("user_id", userId).maybeSingle(),
-    supabase.from("custom_metrics").select("name, unit").eq("user_id", userId).order("sort_order"),
-  ]);
-  return { profile: profile?.data ?? null, gaming: gaming?.data ?? null, metrics: metrics?.data ?? [] };
-}
-
 export const chatWithAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ message: z.string().min(1).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const [{ profile, gaming, metrics }, { data: history }] = await Promise.all([
-      loadUserContext(supabase, userId),
+    const [{ data: profile }, { data: history }] = await Promise.all([
+      supabase.from("profiles").select("display_name, age, gender").eq("id", userId).maybeSingle(),
       supabase
         .from("ai_messages")
         .select("role, content")
@@ -79,14 +59,10 @@ export const chatWithAi = createServerFn({ method: "POST" })
         .limit(40),
     ]);
 
-    const p = profile as { display_name?: string | null; age?: number | null; gender?: string | null; interests?: string[] | null } | null;
     const system = friendSystemPrompt(
-      p?.display_name ?? null,
-      p?.age ?? null,
-      p?.gender ?? null,
-      p?.interests ?? null,
-      gaming as Record<string, unknown> | null,
-      metrics as { name: string; unit: string | null }[],
+      profile?.display_name ?? null,
+      profile?.age ?? null,
+      profile?.gender ?? null,
     );
 
     const messages: Msg[] = [
@@ -120,14 +96,13 @@ export const analyzeWeek = createServerFn({ method: "POST" })
     since.setDate(since.getDate() - 7);
     const sinceIso = since.toISOString().slice(0, 10);
 
-    const [tasks, sleep, workouts, health, journal, customLogs, ctx] = await Promise.all([
+    const [tasks, sleep, workouts, health, journal, profile] = await Promise.all([
       supabase.from("tasks").select("title, scope, completed, scheduled_for").eq("user_id", userId).gte("scheduled_for", sinceIso),
       supabase.from("sleep_logs").select("log_date, hours, quality").eq("user_id", userId).gte("log_date", sinceIso),
       supabase.from("workouts").select("title, kind, duration_min, intensity, workout_date").eq("user_id", userId).gte("workout_date", sinceIso),
       supabase.from("health_logs").select("log_date, mood, energy, water_ml, steps, weight_kg").eq("user_id", userId).gte("log_date", sinceIso),
       supabase.from("journal_entries").select("entry_date, mood, content").eq("user_id", userId).gte("entry_date", sinceIso),
-      supabase.from("custom_metric_logs").select("log_date, value_num, value_text, metric_id").eq("user_id", userId).gte("log_date", sinceIso),
-      loadUserContext(supabase, userId),
+      supabase.from("profiles").select("display_name, age, gender").eq("id", userId).maybeSingle(),
     ]);
 
     const summary = {
@@ -136,19 +111,12 @@ export const analyzeWeek = createServerFn({ method: "POST" })
       workouts: workouts.data ?? [],
       health: health.data ?? [],
       journal: journal.data ?? [],
-      customMetrics: ctx.metrics,
-      customLogs: customLogs.data ?? [],
-      gaming: ctx.gaming,
     };
 
-    const p = ctx.profile as { display_name?: string | null; age?: number | null; gender?: string | null; interests?: string[] | null } | null;
     const system = friendSystemPrompt(
-      p?.display_name ?? null,
-      p?.age ?? null,
-      p?.gender ?? null,
-      p?.interests ?? null,
-      ctx.gaming as Record<string, unknown> | null,
-      ctx.metrics as { name: string; unit: string | null }[],
+      profile.data?.display_name ?? null,
+      profile.data?.age ?? null,
+      profile.data?.gender ?? null,
     );
 
     const userPrompt = `Проанализируй мою неделю как друг. Вот данные в JSON:

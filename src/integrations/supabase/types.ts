@@ -38,119 +38,6 @@ export type Database = {
         }
         Relationships: []
       }
-      custom_metric_logs: {
-        Row: {
-          created_at: string
-          id: string
-          log_date: string
-          metric_id: string
-          user_id: string
-          value_num: number | null
-          value_text: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          log_date?: string
-          metric_id: string
-          user_id: string
-          value_num?: number | null
-          value_text?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          log_date?: string
-          metric_id?: string
-          user_id?: string
-          value_num?: number | null
-          value_text?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "custom_metric_logs_metric_id_fkey"
-            columns: ["metric_id"]
-            isOneToOne: false
-            referencedRelation: "custom_metrics"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      custom_metrics: {
-        Row: {
-          created_at: string
-          icon: string | null
-          id: string
-          kind: string
-          name: string
-          sort_order: number
-          unit: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          icon?: string | null
-          id?: string
-          kind?: string
-          name: string
-          sort_order?: number
-          unit?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          icon?: string | null
-          id?: string
-          kind?: string
-          name?: string
-          sort_order?: number
-          unit?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      gaming_stats: {
-        Row: {
-          faceit_elo: number | null
-          faceit_kd: number | null
-          faceit_level: number | null
-          faceit_recent: Json | null
-          faceit_winrate: number | null
-          last_synced_at: string | null
-          steam_top_games: Json | null
-          steam_total_minutes: number | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          faceit_elo?: number | null
-          faceit_kd?: number | null
-          faceit_level?: number | null
-          faceit_recent?: Json | null
-          faceit_winrate?: number | null
-          last_synced_at?: string | null
-          steam_top_games?: Json | null
-          steam_total_minutes?: number | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          faceit_elo?: number | null
-          faceit_kd?: number | null
-          faceit_level?: number | null
-          faceit_recent?: Json | null
-          faceit_winrate?: number | null
-          last_synced_at?: string | null
-          steam_top_games?: Json | null
-          steam_total_minutes?: number | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       goals: {
         Row: {
           created_at: string
@@ -264,11 +151,8 @@ export type Database = {
           age: number | null
           created_at: string
           display_name: string | null
-          faceit_nickname: string | null
           gender: string | null
           id: string
-          interests: string[] | null
-          steam_id: string | null
           theme: string
           updated_at: string
         }
@@ -276,11 +160,8 @@ export type Database = {
           age?: number | null
           created_at?: string
           display_name?: string | null
-          faceit_nickname?: string | null
           gender?: string | null
           id: string
-          interests?: string[] | null
-          steam_id?: string | null
           theme?: string
           updated_at?: string
         }
@@ -288,11 +169,8 @@ export type Database = {
           age?: number | null
           created_at?: string
           display_name?: string | null
-          faceit_nickname?: string | null
           gender?: string | null
           id?: string
-          interests?: string[] | null
-          steam_id?: string | null
           theme?: string
           updated_at?: string
         }
