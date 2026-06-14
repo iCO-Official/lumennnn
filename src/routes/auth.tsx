@@ -30,6 +30,13 @@ const GENDERS = [
   { id: "other", label: "Другое" },
 ];
 
+const INTERESTS = [
+  { id: "sport", label: "Спорт и тренировки" },
+  { id: "gaming", label: "Киберспорт / игры" },
+  { id: "nutrition", label: "Питание" },
+  { id: "journal", label: "Мысли и дневник" },
+];
+
 function AuthPage() {
   const { mode } = Route.useSearch();
   const navigate = useNavigate();
@@ -38,6 +45,7 @@ function AuthPage() {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState<string>("");
+  const [interests, setInterests] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [hasSession, setHasSession] = useState(false);
