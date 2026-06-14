@@ -81,6 +81,7 @@ function AuthPage() {
               name: name.trim(),
               age: ageNum ? String(ageNum) : "",
               gender,
+              interests: JSON.stringify(interests),
             },
           },
         });
