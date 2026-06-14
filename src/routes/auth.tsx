@@ -211,6 +211,23 @@ function AuthPage() {
                     </button>
                   ))}
                 </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {INTERESTS.map((it) => {
+                    const active = interests.includes(it.id);
+                    return (
+                      <button
+                        key={it.id}
+                        type="button"
+                        onClick={() => setInterests((arr) => active ? arr.filter((x) => x !== it.id) : [...arr, it.id])}
+                        className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                          active ? "border-foreground bg-foreground text-background" : "border-input bg-background text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {it.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </>
             )}
             <input
