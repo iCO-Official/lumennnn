@@ -35,23 +35,21 @@ async function fetchFaceit(nickname: string) {
   // lifetime stats
   let kd: number | null = null;
   let winrate: number | null = null;
-  let recent: unknown[] = [];
+  let recent: Record<string, unknown>[] = [];
   try {
     const statsRes = await fetch(`https://open.faceit.com/data/v4/players/${playerId}/stats/cs2`, { headers });
     if (statsRes.ok) {
       const stats = await statsRes.json();
       kd = parseFloat(stats?.lifetime?.["Average K/D Ratio"] ?? stats?.lifetime?.["K/D Ratio"]) || null;
       winrate = parseFloat(stats?.lifetime?.["Win Rate %"]) || null;
-      recent = (stats?.segments?.[0]?.stats ? [stats.segments[0].stats] : []);
     }
-    // recent matches
     const histRes = await fetch(`https://open.faceit.com/data/v4/players/${playerId}/history?game=cs2&limit=5`, { headers });
     if (histRes.ok) {
       const hist = await histRes.json();
       recent = (hist?.items ?? []).map((m: { competition_name?: string; status?: string; finished_at?: number }) => ({
-        competition: m.competition_name,
-        status: m.status,
-        finished_at: m.finished_at,
+        competition: m.competition_name ?? null,
+        status: m.status ?? null,
+        finished_at: m.finished_at ?? null,
       }));
     }
   } catch {}
@@ -85,12 +83,12 @@ export const syncGaming = createServerFn({ method: "POST" })
 
     const result: {
       steam_total_minutes: number | null;
-      steam_top_games: unknown;
+      steam_top_games: { name: string; hours: number }[] | null;
       faceit_elo: number | null;
       faceit_level: number | null;
       faceit_kd: number | null;
       faceit_winrate: number | null;
-      faceit_recent: unknown;
+      faceit_recent: Record<string, unknown>[] | null;
     } = {
       steam_total_minutes: null,
       steam_top_games: null,
