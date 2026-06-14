@@ -102,6 +102,9 @@
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
   }
+  @media (display-mode: standalone) {
+    body { padding-top: env(safe-area-inset-top); }
+  }
   ::selection { background: var(--color-foreground); color: var(--color-background); }
 }
 

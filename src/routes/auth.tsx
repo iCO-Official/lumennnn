@@ -30,6 +30,13 @@ const GENDERS = [
   { id: "other", label: "Другое" },
 ];
 
+const INTERESTS = [
+  { id: "sport", label: "Спорт и тренировки" },
+  { id: "gaming", label: "Киберспорт / игры" },
+  { id: "nutrition", label: "Питание" },
+  { id: "journal", label: "Мысли и дневник" },
+];
+
 function AuthPage() {
   const { mode } = Route.useSearch();
   const navigate = useNavigate();
@@ -38,6 +45,7 @@ function AuthPage() {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState<string>("");
+  const [interests, setInterests] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [hasSession, setHasSession] = useState(false);
@@ -73,6 +81,7 @@ function AuthPage() {
               name: name.trim(),
               age: ageNum ? String(ageNum) : "",
               gender,
+              interests: JSON.stringify(interests),
             },
           },
         });
@@ -201,6 +210,23 @@ function AuthPage() {
                       {g.label}
                     </button>
                   ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {INTERESTS.map((it) => {
+                    const active = interests.includes(it.id);
+                    return (
+                      <button
+                        key={it.id}
+                        type="button"
+                        onClick={() => setInterests((arr) => active ? arr.filter((x) => x !== it.id) : [...arr, it.id])}
+                        className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                          active ? "border-foreground bg-foreground text-background" : "border-input bg-background text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {it.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}
