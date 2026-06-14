@@ -58,7 +58,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Lumen — твой ежедневник и AI-аналитик дня" },
       { name: "description", content: "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей." },
-      { name: "theme-color", content: "#1f1f1f" },
+      { name: "theme-color", content: "#000000" },
       { property: "og:title", content: "Lumen — твой ежедневник и AI-аналитик дня" },
       { property: "og:description", content: "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей." },
       { property: "og:type", content: "website" },
