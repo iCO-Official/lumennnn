@@ -35,7 +35,8 @@ async function fetchFaceit(nickname: string) {
   // lifetime stats
   let kd: number | null = null;
   let winrate: number | null = null;
-  let recent: Record<string, unknown>[] = [];
+  type Recent = { competition: string | null; status: string | null; finished_at: number | null };
+  let recent: Recent[] = [];
   try {
     const statsRes = await fetch(`https://open.faceit.com/data/v4/players/${playerId}/stats/cs2`, { headers });
     if (statsRes.ok) {
