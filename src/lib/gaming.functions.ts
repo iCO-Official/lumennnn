@@ -89,7 +89,7 @@ export const syncGaming = createServerFn({ method: "POST" })
       faceit_level: number | null;
       faceit_kd: number | null;
       faceit_winrate: number | null;
-      faceit_recent: Record<string, unknown>[] | null;
+      faceit_recent: { competition: string | null; status: string | null; finished_at: number | null }[] | null;
     } = {
       steam_total_minutes: null,
       steam_top_games: null,
