@@ -125,6 +125,8 @@ function AppPage() {
             {section === "sleep" && <SleepSection />}
             {section === "workouts" && <WorkoutsSection />}
             {section === "health" && <HealthSection />}
+            {section === "gaming" && <GamingSection />}
+            {section === "metrics" && <MetricsSection />}
             {section === "stats" && <StatsSection />}
             {section === "ai" && <AiSection />}
 
