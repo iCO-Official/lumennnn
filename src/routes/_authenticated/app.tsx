@@ -8,10 +8,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Check, Plus, Loader2, Trash2, Calendar, Moon, Activity,
   Dumbbell, NotebookPen, Sparkles, BarChart3, Send, RotateCw,
-  CalendarClock, Settings as SettingsIcon, Wand2,
+  CalendarClock, Settings as SettingsIcon, Wand2, Gamepad2, Ruler, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { chatWithAi, resetAiChat, analyzeWeek, generateSchedule } from "@/lib/ai.functions";
+import { syncGaming } from "@/lib/gaming.functions";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
