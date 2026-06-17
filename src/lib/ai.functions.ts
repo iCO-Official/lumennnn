@@ -60,20 +60,24 @@ export const chatWithAi = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const [{ data: profile }, { data: history }] = await Promise.all([
-      supabase.from("profiles").select("display_name, age, gender").eq("id", userId).maybeSingle(),
+    const [{ data: profile }, { data: history }, { data: gaming }, { data: metrics }] = await Promise.all([
+      supabase.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
       supabase
         .from("ai_messages")
         .select("role, content")
         .eq("user_id", userId)
         .order("created_at", { ascending: true })
         .limit(40),
+      supabase.from("gaming_stats").select("*").eq("user_id", userId).maybeSingle(),
+      supabase.from("custom_metrics").select("name, unit").eq("user_id", userId),
     ]);
 
     const system = friendSystemPrompt(
       profile?.display_name ?? null,
       profile?.age ?? null,
       profile?.gender ?? null,
+      profile?.interests ?? null,
+      { gaming: gaming ?? null, metrics: metrics ?? [] },
     );
 
     const messages: Msg[] = [
