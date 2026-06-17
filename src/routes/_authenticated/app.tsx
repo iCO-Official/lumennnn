@@ -8,10 +8,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Check, Plus, Loader2, Trash2, Calendar, Moon, Activity,
   Dumbbell, NotebookPen, Sparkles, BarChart3, Send, RotateCw,
-  CalendarClock, Settings as SettingsIcon, Wand2,
+  CalendarClock, Settings as SettingsIcon, Wand2, Gamepad2, Ruler, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { chatWithAi, resetAiChat, analyzeWeek, generateSchedule } from "@/lib/ai.functions";
+import { syncGaming } from "@/lib/gaming.functions";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/_authenticated/app")({
 });
 
 
-type Section = "plans" | "routine" | "journal" | "sleep" | "workouts" | "health" | "stats" | "ai";
+type Section = "plans" | "routine" | "journal" | "sleep" | "workouts" | "health" | "gaming" | "metrics" | "stats" | "ai";
 
 const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "plans", label: "Планы", icon: Calendar },
@@ -31,6 +32,8 @@ const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ classN
   { id: "sleep", label: "Сон", icon: Moon },
   { id: "workouts", label: "Тренировки", icon: Dumbbell },
   { id: "health", label: "Здоровье", icon: Activity },
+  { id: "gaming", label: "Игры", icon: Gamepad2 },
+  { id: "metrics", label: "Метрики", icon: Ruler },
   { id: "stats", label: "Статистика", icon: BarChart3 },
   { id: "ai", label: "AI-друг", icon: Sparkles },
 ];
@@ -122,6 +125,8 @@ function AppPage() {
             {section === "sleep" && <SleepSection />}
             {section === "workouts" && <WorkoutsSection />}
             {section === "health" && <HealthSection />}
+            {section === "gaming" && <GamingSection />}
+            {section === "metrics" && <MetricsSection />}
             {section === "stats" && <StatsSection />}
             {section === "ai" && <AiSection />}
 
@@ -1118,5 +1123,302 @@ function RoutinesSection() {
         </ul>
       )}
     </div>
+  );
+}
+
+// ============= GAMING =============
+type GamingStats = {
+  steam_total_minutes: number | null;
+  steam_top_games: { name: string; hours: number }[] | null;
+  faceit_elo: number | null;
+  faceit_level: number | null;
+  faceit_kd: number | null;
+  faceit_winrate: number | null;
+  faceit_recent: { competition: string | null; status: string | null; finished_at: number | null }[] | null;
+  last_synced_at: string | null;
+};
+
+function GamingSection() {
+  const sync = useServerFn(syncGaming);
+  const [steamId, setSteamId] = useState("");
+  const [faceit, setFaceit] = useState("");
+  const [stats, setStats] = useState<GamingStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) return;
+    const [{ data: profile }, { data: gs }] = await Promise.all([
+      supabase.from("profiles").select("steam_id, faceit_nickname").eq("id", u.user.id).maybeSingle(),
+      supabase.from("gaming_stats").select("*").eq("user_id", u.user.id).maybeSingle(),
+    ]);
+    setSteamId(profile?.steam_id ?? "");
+    setFaceit(profile?.faceit_nickname ?? "");
+    setStats((gs as GamingStats | null) ?? null);
+    setLoading(false);
+  }
+
+  async function run() {
+    setSyncing(true);
+    try {
+      const r = await sync({ data: { steamId: steamId || null, faceitNickname: faceit || null } });
+      if (r.errors?.length) r.errors.forEach((e) => toast.error(e));
+      else toast.success("Синхронизировано");
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  if (loading) return <Loader />;
+
+  const steamHours = stats?.steam_total_minutes != null ? Math.round(stats.steam_total_minutes / 60) : null;
+
+  return (
+    <div>
+      <div className="mb-4 rounded-2xl border border-border bg-card p-5">
+        <div className="mb-3 text-sm text-muted-foreground">Подключи аккаунты — AI будет видеть статистику.</div>
+        <div className="mb-3">
+          <div className="mb-1 text-xs text-muted-foreground">Steam ID (64-bit)</div>
+          <input value={steamId} onChange={(e) => setSteamId(e.target.value)} placeholder="76561198..."
+            className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+        </div>
+        <div className="mb-3">
+          <div className="mb-1 text-xs text-muted-foreground">Faceit nickname</div>
+          <input value={faceit} onChange={(e) => setFaceit(e.target.value)} placeholder="ник"
+            className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+        </div>
+        <button onClick={run} disabled={syncing} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40">
+          {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {syncing ? "Синхронизирую…" : "Синхронизировать"}
+        </button>
+        {stats?.last_synced_at && (
+          <div className="mt-2 text-center text-xs text-muted-foreground">Обновлено {formatDate(stats.last_synced_at)}</div>
+        )}
+      </div>
+
+      {(steamHours != null || stats?.steam_top_games?.length) && (
+        <Card title="Steam">
+          {steamHours != null && (
+            <div className="mb-3 flex items-baseline gap-2">
+              <span className="font-serif text-3xl">{steamHours}</span>
+              <span className="text-sm text-muted-foreground">часов всего</span>
+            </div>
+          )}
+          {stats?.steam_top_games?.length ? (
+            <ul className="space-y-1.5">
+              {stats.steam_top_games.map((g, i) => (
+                <li key={i} className="flex items-center justify-between text-sm">
+                  <span className="truncate pr-2">{g.name}</span>
+                  <span className="text-muted-foreground tabular-nums">{g.hours} ч</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Card>
+      )}
+
+      {(stats?.faceit_elo != null || stats?.faceit_kd != null) && (
+        <div className="mt-4">
+          <Card title="Faceit · CS2">
+            <div className="grid grid-cols-2 gap-3">
+              {stats.faceit_elo != null && <Stat label="ELO" value={String(stats.faceit_elo)} />}
+              {stats.faceit_level != null && <Stat label="Уровень" value={String(stats.faceit_level)} />}
+              {stats.faceit_kd != null && <Stat label="K/D" value={stats.faceit_kd.toFixed(2)} />}
+              {stats.faceit_winrate != null && <Stat label="Winrate" value={`${stats.faceit_winrate}%`} />}
+            </div>
+            {stats.faceit_recent?.length ? (
+              <div className="mt-4">
+                <div className="mb-2 text-xs text-muted-foreground">Последние матчи</div>
+                <ul className="space-y-1 text-xs">
+                  {stats.faceit_recent.slice(0, 5).map((m, i) => (
+                    <li key={i} className="flex items-center justify-between text-muted-foreground">
+                      <span className="truncate pr-2">{m.competition ?? "—"}</span>
+                      <span>{m.status ?? ""}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </Card>
+        </div>
+      )}
+
+      {!stats?.steam_total_minutes && !stats?.faceit_elo && (
+        <Empty text="Введи Steam ID или Faceit ник и нажми синхронизировать." />
+      )}
+    </div>
+  );
+}
+
+// ============= CUSTOM METRICS =============
+type Metric = { id: string; name: string; kind: string; unit: string | null; icon: string | null; sort_order: number };
+type MetricLog = { id: string; metric_id: string; log_date: string; value_num: number | null; value_text: string | null; created_at: string };
+
+function MetricsSection() {
+  const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [logs, setLogs] = useState<MetricLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState("");
+  const [newKind, setNewKind] = useState<"number" | "text">("number");
+  const [newUnit, setNewUnit] = useState("");
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const since = new Date(); since.setDate(since.getDate() - 14);
+    const sinceIso = since.toISOString().slice(0, 10);
+    const [{ data: m }, { data: l }] = await Promise.all([
+      supabase.from("custom_metrics").select("*").order("sort_order"),
+      supabase.from("custom_metric_logs").select("*").gte("log_date", sinceIso).order("created_at", { ascending: false }),
+    ]);
+    setMetrics((m ?? []) as Metric[]);
+    setLogs((l ?? []) as MetricLog[]);
+    setLoading(false);
+  }
+
+  async function addMetric(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    const { data: u } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from("custom_metrics").insert({
+      user_id: u.user!.id,
+      name: newName.trim(),
+      kind: newKind,
+      unit: newUnit.trim() || null,
+      sort_order: metrics.length,
+    }).select("*").single();
+    if (error) toast.error(error.message);
+    else if (data) {
+      setMetrics((ms) => [...ms, data as Metric]);
+      setNewName(""); setNewUnit("");
+    }
+  }
+
+  async function removeMetric(id: string) {
+    if (!confirm("Удалить метрику и все её записи?")) return;
+    setMetrics((ms) => ms.filter((m) => m.id !== id));
+    await supabase.from("custom_metrics").delete().eq("id", id);
+    setLogs((ls) => ls.filter((l) => l.metric_id !== id));
+  }
+
+  async function logValue(metric: Metric, raw: string) {
+    if (!raw.trim()) return;
+    const { data: u } = await supabase.auth.getUser();
+    const today = new Date().toISOString().slice(0, 10);
+    const payload = {
+      user_id: u.user!.id,
+      metric_id: metric.id,
+      log_date: today,
+      value_num: metric.kind === "number" ? parseFloat(raw) : null,
+      value_text: metric.kind === "text" ? raw.trim() : null,
+    };
+    const { data, error } = await supabase.from("custom_metric_logs").insert(payload).select("*").single();
+    if (error) toast.error(error.message);
+    else if (data) {
+      setLogs((ls) => [data as MetricLog, ...ls]);
+      toast.success("Записано");
+    }
+  }
+
+  async function removeLog(id: string) {
+    setLogs((ls) => ls.filter((l) => l.id !== id));
+    await supabase.from("custom_metric_logs").delete().eq("id", id);
+  }
+
+  return (
+    <div>
+      <div className="mb-4 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+        Создай свои переменные — например «Кофе чашек», «Настроение», «Время в коде». AI будет анализировать всё.
+      </div>
+
+      <form onSubmit={addMetric} className="mb-6 rounded-2xl border border-border bg-card p-4">
+        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Название метрики"
+          className="mb-3 h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+        <div className="mb-3 flex gap-2">
+          {(["number", "text"] as const).map((k) => (
+            <button key={k} type="button" onClick={() => setNewKind(k)}
+              className={`h-10 flex-1 rounded-xl border text-xs transition-colors ${newKind === k ? "border-foreground bg-foreground text-background" : "border-input text-muted-foreground hover:text-foreground"}`}>
+              {k === "number" ? "Число" : "Текст"}
+            </button>
+          ))}
+        </div>
+        {newKind === "number" && (
+          <input value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="Единицы (необязательно): чашек, км, мин"
+            className="mb-3 h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground" />
+        )}
+        <button type="submit" disabled={!newName.trim()} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40">
+          <Plus className="h-4 w-4" /> Создать метрику
+        </button>
+      </form>
+
+      {loading ? <Loader /> : metrics.length === 0 ? <Empty text="Пока нет метрик." /> : (
+        <ul className="flex flex-col gap-3">
+          {metrics.map((m) => (
+            <MetricCard key={m.id} metric={m} logs={logs.filter((l) => l.metric_id === m.id)}
+              onLog={(v) => logValue(m, v)} onRemove={() => removeMetric(m.id)} onRemoveLog={removeLog} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function MetricCard({ metric, logs, onLog, onRemove, onRemoveLog }: {
+  metric: Metric; logs: MetricLog[];
+  onLog: (v: string) => void | Promise<void>;
+  onRemove: () => void;
+  onRemoveLog: (id: string) => void;
+}) {
+  const [val, setVal] = useState("");
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    await onLog(val);
+    setVal("");
+  }
+  return (
+    <li className="group rounded-2xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <div className="text-sm font-medium">{metric.name}</div>
+          <div className="text-xs text-muted-foreground">{metric.kind === "number" ? `Число${metric.unit ? ` · ${metric.unit}` : ""}` : "Текст"}</div>
+        </div>
+        <button onClick={onRemove} className="text-muted-foreground hover:text-destructive">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+      <form onSubmit={submit} className="mb-3 flex gap-2">
+        <input
+          type={metric.kind === "number" ? "number" : "text"}
+          step="any"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={metric.kind === "number" ? `Сегодня ${metric.unit ?? ""}` : "Что записать?"}
+          className="h-10 flex-1 rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground"
+        />
+        <button type="submit" disabled={!val.trim()} className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background disabled:opacity-40">
+          <Plus className="h-4 w-4" />
+        </button>
+      </form>
+      {logs.length > 0 && (
+        <ul className="space-y-1 text-xs">
+          {logs.slice(0, 5).map((l) => (
+            <li key={l.id} className="flex items-center justify-between text-muted-foreground">
+              <span>{l.log_date} · {l.value_num != null ? `${l.value_num}${metric.unit ? ` ${metric.unit}` : ""}` : l.value_text}</span>
+              <button onClick={() => onRemoveLog(l.id)} className="opacity-60 hover:opacity-100 hover:text-destructive">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }

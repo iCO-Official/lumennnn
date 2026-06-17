@@ -10,6 +10,13 @@ export const Route = createFileRoute("/_authenticated/app/settings")({
   component: SettingsPage,
 });
 
+const INTERESTS = [
+  { id: "sport", label: "Спорт и тренировки" },
+  { id: "gaming", label: "Киберспорт / игры" },
+  { id: "nutrition", label: "Питание" },
+  { id: "journal", label: "Мысли и дневник" },
+];
+
 function SettingsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -18,6 +25,7 @@ function SettingsPage() {
   const [age, setAge] = useState<string>("");
   const [gender, setGender] = useState<string>("");
   const [email, setEmail] = useState("");
+  const [interests, setInterests] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -26,15 +34,20 @@ function SettingsPage() {
       setEmail(u.user.email ?? "");
       const { data } = await supabase
         .from("profiles")
-        .select("display_name, age, gender")
+        .select("display_name, age, gender, interests")
         .eq("id", u.user.id)
         .maybeSingle();
       setName(data?.display_name ?? "");
       setAge(data?.age != null ? String(data.age) : "");
       setGender(data?.gender ?? "");
+      setInterests(data?.interests ?? []);
       setLoading(false);
     })();
   }, []);
+
+  function toggleInterest(id: string) {
+    setInterests((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -46,6 +59,7 @@ function SettingsPage() {
       display_name: name.trim() || null,
       age: Number.isFinite(ageNum) ? ageNum : null,
       gender: gender || null,
+      interests,
     });
     if (error) toast.error(error.message);
     else toast.success("Сохранено");
@@ -97,6 +111,21 @@ function SettingsPage() {
                     {g.label}
                   </button>
                 ))}
+              </div>
+            </Field>
+            <Field label="Интересы">
+              <div className="flex flex-wrap gap-2">
+                {INTERESTS.map((it) => {
+                  const active = interests.includes(it.id);
+                  return (
+                    <button key={it.id} type="button" onClick={() => toggleInterest(it.id)}
+                      className={`h-10 rounded-full border px-4 text-xs transition-colors ${
+                        active ? "border-foreground bg-foreground text-background" : "border-border bg-card text-muted-foreground hover:text-foreground"
+                      }`}>
+                      {it.label}
+                    </button>
+                  );
+                })}
               </div>
             </Field>
             <Field label="Email">
