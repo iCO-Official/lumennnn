@@ -10,6 +10,16 @@ export const Route = createFileRoute("/_authenticated/app/settings")({
   component: SettingsPage,
 });
 
+const INTERESTS = [
+  { id: "sport", label: "Спорт и тренировки" },
+  { id: "gaming", label: "Киберспорт / игры" },
+  { id: "nutrition", label: "Питание" },
+  { id: "journal", label: "Мысли и дневник" },
+];
+  head: () => ({ meta: [{ title: "Настройки — Lumen" }] }),
+  component: SettingsPage,
+});
+
 function SettingsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
