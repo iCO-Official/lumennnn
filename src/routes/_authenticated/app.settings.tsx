@@ -25,6 +25,7 @@ function SettingsPage() {
   const [age, setAge] = useState<string>("");
   const [gender, setGender] = useState<string>("");
   const [email, setEmail] = useState("");
+  const [interests, setInterests] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -33,15 +34,20 @@ function SettingsPage() {
       setEmail(u.user.email ?? "");
       const { data } = await supabase
         .from("profiles")
-        .select("display_name, age, gender")
+        .select("display_name, age, gender, interests")
         .eq("id", u.user.id)
         .maybeSingle();
       setName(data?.display_name ?? "");
       setAge(data?.age != null ? String(data.age) : "");
       setGender(data?.gender ?? "");
+      setInterests(data?.interests ?? []);
       setLoading(false);
     })();
   }, []);
+
+  function toggleInterest(id: string) {
+    setInterests((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]);
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +59,7 @@ function SettingsPage() {
       display_name: name.trim() || null,
       age: Number.isFinite(ageNum) ? ageNum : null,
       gender: gender || null,
+      interests,
     });
     if (error) toast.error(error.message);
     else toast.success("Сохранено");
