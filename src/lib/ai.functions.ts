@@ -111,14 +111,26 @@ export const analyzeWeek = createServerFn({ method: "POST" })
     since.setDate(since.getDate() - 7);
     const sinceIso = since.toISOString().slice(0, 10);
 
-    const [tasks, sleep, workouts, health, journal, profile] = await Promise.all([
+    const [tasks, sleep, workouts, health, journal, profile, gaming, metrics, metricLogs] = await Promise.all([
       supabase.from("tasks").select("title, scope, completed, scheduled_for").eq("user_id", userId).gte("scheduled_for", sinceIso),
       supabase.from("sleep_logs").select("log_date, hours, quality").eq("user_id", userId).gte("log_date", sinceIso),
       supabase.from("workouts").select("title, kind, duration_min, intensity, workout_date").eq("user_id", userId).gte("workout_date", sinceIso),
       supabase.from("health_logs").select("log_date, mood, energy, water_ml, steps, weight_kg").eq("user_id", userId).gte("log_date", sinceIso),
       supabase.from("journal_entries").select("entry_date, mood, content").eq("user_id", userId).gte("entry_date", sinceIso),
-      supabase.from("profiles").select("display_name, age, gender").eq("id", userId).maybeSingle(),
+      supabase.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
+      supabase.from("gaming_stats").select("*").eq("user_id", userId).maybeSingle(),
+      supabase.from("custom_metrics").select("id, name, unit").eq("user_id", userId),
+      supabase.from("custom_metric_logs").select("metric_id, log_date, value_num, value_text").eq("user_id", userId).gte("log_date", sinceIso),
     ]);
+
+    const metricsList = (metrics.data ?? []) as { id: string; name: string; unit: string | null }[];
+    const metricById = new Map(metricsList.map((m) => [m.id, m]));
+    const enrichedLogs = (metricLogs.data ?? []).map((l) => ({
+      metric: metricById.get(l.metric_id)?.name ?? "—",
+      unit: metricById.get(l.metric_id)?.unit ?? null,
+      date: l.log_date,
+      value: l.value_num ?? l.value_text,
+    }));
 
     const summary = {
       tasks: tasks.data ?? [],
@@ -126,12 +138,16 @@ export const analyzeWeek = createServerFn({ method: "POST" })
       workouts: workouts.data ?? [],
       health: health.data ?? [],
       journal: journal.data ?? [],
+      gaming: gaming.data ?? null,
+      custom_metrics: enrichedLogs,
     };
 
     const system = friendSystemPrompt(
       profile.data?.display_name ?? null,
       profile.data?.age ?? null,
       profile.data?.gender ?? null,
+      profile.data?.interests ?? null,
+      { gaming: gaming.data ?? null, metrics: metricsList },
     );
 
     const userPrompt = `Проанализируй мою неделю как друг. Вот данные в JSON:
