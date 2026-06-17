@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_authenticated/app")({
 });
 
 
-type Section = "plans" | "routine" | "journal" | "sleep" | "workouts" | "health" | "stats" | "ai";
+type Section = "plans" | "routine" | "journal" | "sleep" | "workouts" | "health" | "gaming" | "metrics" | "stats" | "ai";
 
 const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "plans", label: "Планы", icon: Calendar },
@@ -32,6 +32,8 @@ const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ classN
   { id: "sleep", label: "Сон", icon: Moon },
   { id: "workouts", label: "Тренировки", icon: Dumbbell },
   { id: "health", label: "Здоровье", icon: Activity },
+  { id: "gaming", label: "Игры", icon: Gamepad2 },
+  { id: "metrics", label: "Метрики", icon: Ruler },
   { id: "stats", label: "Статистика", icon: BarChart3 },
   { id: "ai", label: "AI-друг", icon: Sparkles },
 ];
