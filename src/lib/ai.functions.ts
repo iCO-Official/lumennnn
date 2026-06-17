@@ -25,11 +25,21 @@ async function callGateway(messages: Msg[]): Promise<string> {
   return data?.choices?.[0]?.message?.content ?? "";
 }
 
-function friendSystemPrompt(name: string | null, age: number | null, gender: string | null) {
+function friendSystemPrompt(
+  name: string | null,
+  age: number | null,
+  gender: string | null,
+  interests: string[] | null,
+  extras: { gaming?: unknown; metrics?: { name: string; unit: string | null }[] } = {},
+) {
   const ctx: string[] = [];
   if (name) ctx.push(`Имя: ${name}`);
   if (age) ctx.push(`Возраст: ${age}`);
   if (gender) ctx.push(`Пол: ${gender}`);
+  if (interests?.length) ctx.push(`Интересы: ${interests.join(", ")}`);
+  if (extras.metrics?.length) ctx.push(`Личные метрики: ${extras.metrics.map((m) => m.name + (m.unit ? ` (${m.unit})` : "")).join(", ")}`);
+  if (extras.gaming) ctx.push(`Игровая статистика: ${JSON.stringify(extras.gaming)}`);
+
   return `Ты — Lumen, личный AI-друг, который помогает пользователю в его дневнике. Общайся как близкий друг: тепло, на «ты», без формальностей, без канцелярита, без "Как я могу помочь?".
 
 Стиль:
@@ -38,7 +48,8 @@ function friendSystemPrompt(name: string | null, age: number | null, gender: str
 - слушай и задавай уточняющие вопросы, а не сразу советы;
 - даёшь конкретику, а не общие слова;
 - не используй emoji-спам, максимум 1 эмодзи на сообщение и не всегда;
-- отвечай на том языке, на котором пишет пользователь (обычно русский).
+- отвечай на том языке, на котором пишет пользователь (обычно русский);
+- анализируй абсолютно все данные пользователя — сон, тренировки, здоровье, игры, кастомные метрики, дневник.
 
 ${ctx.length ? "Что ты знаешь о собеседнике:\n" + ctx.join("\n") : ""}`;
 }
