@@ -16,9 +16,6 @@ const INTERESTS = [
   { id: "nutrition", label: "Питание" },
   { id: "journal", label: "Мысли и дневник" },
 ];
-  head: () => ({ meta: [{ title: "Настройки — Lumen" }] }),
-  component: SettingsPage,
-});
 
 function SettingsPage() {
   const navigate = useNavigate();
