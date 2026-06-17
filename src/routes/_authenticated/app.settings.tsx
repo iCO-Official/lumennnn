@@ -113,6 +113,21 @@ function SettingsPage() {
                 ))}
               </div>
             </Field>
+            <Field label="Интересы">
+              <div className="flex flex-wrap gap-2">
+                {INTERESTS.map((it) => {
+                  const active = interests.includes(it.id);
+                  return (
+                    <button key={it.id} type="button" onClick={() => toggleInterest(it.id)}
+                      className={`h-10 rounded-full border px-4 text-xs transition-colors ${
+                        active ? "border-foreground bg-foreground text-background" : "border-border bg-card text-muted-foreground hover:text-foreground"
+                      }`}>
+                      {it.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
             <Field label="Email">
               <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{email}</div>
             </Field>
