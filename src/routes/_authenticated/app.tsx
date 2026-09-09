@@ -9,9 +9,10 @@ import {
   Check, Plus, Loader2, Trash2, Calendar, Moon, Activity,
   Dumbbell, NotebookPen, Sparkles, BarChart3, Send, RotateCw,
   CalendarClock, Settings as SettingsIcon, Wand2, Gamepad2, Ruler, RefreshCw,
+  Home, Bell,
 } from "lucide-react";
 import { toast } from "sonner";
-import { chatWithAi, resetAiChat, analyzeWeek, generateSchedule } from "@/lib/ai.functions";
+import { chatWithAi, resetAiChat, analyzeWeek, generateSchedule, dailyBrief } from "@/lib/ai.functions";
 import { syncGaming } from "@/lib/gaming.functions";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -23,24 +24,19 @@ export const Route = createFileRoute("/_authenticated/app")({
 });
 
 
-type Section = "plans" | "routine" | "journal" | "sleep" | "workouts" | "health" | "gaming" | "metrics" | "stats" | "ai";
+type Section = "home" | "plans" | "routine" | "journal" | "sleep" | "ai" | "metrics";
 
 const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "home", label: "Главная", icon: Home },
   { id: "plans", label: "Планы", icon: Calendar },
   { id: "routine", label: "Рутина", icon: CalendarClock },
   { id: "journal", label: "Дневник", icon: NotebookPen },
   { id: "sleep", label: "Сон", icon: Moon },
-  { id: "workouts", label: "Тренировки", icon: Dumbbell },
-  { id: "health", label: "Здоровье", icon: Activity },
-  { id: "gaming", label: "Игры", icon: Gamepad2 },
-  { id: "metrics", label: "Метрики", icon: Ruler },
-  { id: "stats", label: "Статистика", icon: BarChart3 },
   { id: "ai", label: "AI-друг", icon: Sparkles },
 ];
 
-
 function AppPage() {
-  const [section, setSection] = useState<Section>("plans");
+  const [section, setSection] = useState<Section>("home");
   const [name, setName] = useState("");
 
   useEffect(() => {
@@ -57,21 +53,21 @@ function AppPage() {
       <div className="pointer-events-none absolute inset-0 bg-grid opacity-30" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[400px] bg-glow" />
 
-      <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-3 sm:px-8 sm:pt-4">
+      <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-2 sm:px-8 sm:pt-4">
         <LumenLogo />
         <div className="flex items-center gap-2">
-          <ThemeToggle />
+          <ThemeToggle className="!h-11 !w-11" />
           <Link
             to="/app/settings"
             aria-label="Настройки"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/40 backdrop-blur transition-colors hover:bg-accent"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background/40 backdrop-blur transition-colors hover:bg-accent active:scale-95"
           >
-            <SettingsIcon className="h-4 w-4" />
+            <SettingsIcon className="h-5 w-5" />
           </Link>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-4xl px-5 pb-32 pt-4 sm:px-8 sm:pt-6">
+      <main className="relative z-10 mx-auto max-w-4xl px-5 pb-36 pt-3 sm:px-8 sm:pt-6">
         <div className="mb-5">
           <div className="text-sm text-muted-foreground">
             <span translate="no">{greeting()}</span>{name ? ", " + name : ""}.
@@ -79,36 +75,6 @@ function AppPage() {
           <h1 className="mt-1 font-serif text-2xl tracking-tight sm:text-3xl">
             <span translate="no">{todayLabel()}</span>
           </h1>
-        </div>
-
-
-        {/* Section tabs */}
-        <div className="-mx-5 mb-6 overflow-x-auto px-5 sm:mx-0 sm:px-0">
-          <div className="inline-flex gap-1.5 rounded-full border border-border bg-card p-1">
-            {SECTIONS.map((s) => {
-              const Icon = s.icon;
-              const active = section === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setSection(s.id)}
-                  className={`relative inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-colors sm:text-sm ${
-                    active ? "text-background" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {active && (
-                    <motion.span
-                      layoutId="section-pill"
-                      className="absolute inset-0 rounded-full bg-foreground"
-                      transition={{ type: "spring", duration: 0.5, bounce: 0.2 }}
-                    />
-                  )}
-                  <Icon className="relative z-10 h-3.5 w-3.5" />
-                  <span className="relative z-10">{s.label}</span>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         <AnimatePresence mode="wait">
@@ -119,25 +85,154 @@ function AppPage() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.2 }}
           >
+            {section === "home" && <HomeSection onGo={setSection} />}
             {section === "plans" && <PlansSection />}
             {section === "routine" && <RoutinesSection />}
             {section === "journal" && <JournalSection />}
             {section === "sleep" && <SleepSection />}
-            {section === "workouts" && <WorkoutsSection />}
-            {section === "health" && <HealthSection />}
-            {section === "gaming" && <GamingSection />}
             {section === "metrics" && <MetricsSection />}
-            {section === "stats" && <StatsSection />}
             {section === "ai" && <AiSection />}
-
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* Bottom navigation */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-4xl items-stretch justify-between px-2">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            const active = section === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setSection(s.id)}
+                aria-label={s.label}
+                className={`flex flex-1 flex-col items-center gap-1 py-2.5 transition-colors ${
+                  active ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                <span className={`relative inline-flex h-9 w-full max-w-14 items-center justify-center rounded-2xl ${active ? "bg-accent" : ""}`}>
+                  <Icon className="h-[22px] w-[22px]" />
+                </span>
+                <span className="text-[10px] leading-none">{s.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+
+// ============= HOME =============
+type Brief = { emoji: string; mood: string; message: string; tips: string[] };
+
+function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
+  const brief = useServerFn(dailyBrief);
+  const [data, setData] = useState<Brief | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notifState, setNotifState] = useState<string>("default");
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    if (typeof Notification !== "undefined") setNotifState(Notification.permission);
+    const cacheKey = "lumen-brief-" + todayIso;
+    const cached = typeof window !== "undefined" ? localStorage.getItem(cacheKey) : null;
+    if (cached) {
+      try { setData(JSON.parse(cached)); setLoading(false); return; } catch { /* ignore */ }
+    }
+    (async () => {
+      try {
+        const r = await brief();
+        setData(r);
+        localStorage.setItem(cacheKey, JSON.stringify(r));
+      } catch {
+        setData({ emoji: "🙂", mood: "", message: "Я рядом. Расскажи, как день?", tips: [] });
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  async function enableNotifications() {
+    if (typeof Notification === "undefined") { toast.error("Уведомления не поддерживаются"); return; }
+    const p = await Notification.requestPermission();
+    setNotifState(p);
+    if (p === "granted") {
+      await scheduleRoutineReminders();
+      new Notification("Lumen", { body: "Готово — буду напоминать про твои дела 🙌", icon: "/icon-192.png" });
+    } else {
+      toast.error("Разреши уведомления в настройках браузера");
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-3xl border border-border bg-card p-6 text-center">
+        {loading ? (
+          <div className="py-8"><Loader /></div>
+        ) : (
+          <>
+            <motion.div
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", bounce: 0.4 }}
+              className="text-7xl leading-none"
+            >
+              {data?.emoji ?? "🙂"}
+            </motion.div>
+            {data?.mood && <div className="mt-3 text-xs uppercase tracking-widest text-muted-foreground">{data.mood}</div>}
+            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-foreground">{data?.message}</p>
+            <button
+              onClick={() => onGo("ai")}
+              className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-foreground px-6 text-sm font-medium text-background"
+            >
+              <Sparkles className="h-4 w-4" /> Поговорить
+            </button>
+          </>
+        )}
+      </div>
+
+      {!!data?.tips?.length && (
+        <div className="rounded-3xl border border-border bg-card p-5">
+          <div className="mb-3 text-xs uppercase tracking-widest text-muted-foreground">Советы на сегодня</div>
+          <ul className="flex flex-col gap-3">
+            {data.tips.map((t, i) => (
+              <li key={i} className="flex gap-3 text-sm leading-relaxed">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
+                <span>{t}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={() => onGo("routine")} className="flex flex-col items-start gap-2 rounded-3xl border border-border bg-card p-5 text-left hover:bg-accent">
+          <CalendarClock className="h-5 w-5" />
+          <span className="text-sm font-medium">Рутина на сегодня</span>
+        </button>
+        <button onClick={() => onGo("metrics")} className="flex flex-col items-start gap-2 rounded-3xl border border-border bg-card p-5 text-left hover:bg-accent">
+          <Ruler className="h-5 w-5" />
+          <span className="text-sm font-medium">Мои метрики</span>
+        </button>
+      </div>
+
+      {notifState !== "granted" && (
+        <button
+          onClick={enableNotifications}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card text-sm hover:bg-accent"
+        >
+          <Bell className="h-4 w-4" /> Включить напоминания
+        </button>
+      )}
     </div>
   );
 }
 
 // ============= PLANS =============
+
 type Scope = "day" | "week" | "month";
 type Task = { id: string; title: string; scope: Scope; completed: boolean; scheduled_for: string };
 
