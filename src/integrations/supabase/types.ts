@@ -298,6 +298,44 @@ export type Database = {
         }
         Relationships: []
       }
+      routine_logs: {
+        Row: {
+          created_at: string
+          done: boolean
+          id: string
+          log_date: string
+          routine_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          log_date?: string
+          routine_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          log_date?: string
+          routine_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_logs_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       routines: {
         Row: {
           active: boolean
