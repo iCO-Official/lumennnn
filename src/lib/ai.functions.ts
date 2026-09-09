@@ -5,9 +5,16 @@ import { z } from "zod";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3-flash-preview";
 
-type Msg = { role: "system" | "user" | "assistant"; content: string };
+type Msg = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+};
+type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
+type GwChoice = { message: { content: string | null; tool_calls?: ToolCall[] } };
 
-async function callGateway(messages: Msg[]): Promise<string> {
+async function rawGateway(messages: Msg[], tools?: unknown[]): Promise<GwChoice["message"]> {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("LOVABLE_API_KEY не задан");
   const res = await fetch(GATEWAY, {
@@ -16,14 +23,20 @@ async function callGateway(messages: Msg[]): Promise<string> {
       "Content-Type": "application/json",
       Authorization: `Bearer ${key}`,
     },
-    body: JSON.stringify({ model: MODEL, messages }),
+    body: JSON.stringify({ model: MODEL, messages, ...(tools ? { tools } : {}) }),
   });
   if (res.status === 429) throw new Error("Слишком много запросов. Попробуй позже.");
   if (res.status === 402) throw new Error("Закончились AI-кредиты на воркспейсе.");
   if (!res.ok) throw new Error(`AI Gateway: ${res.status}`);
   const data = await res.json();
-  return data?.choices?.[0]?.message?.content ?? "";
+  return data?.choices?.[0]?.message ?? { content: "" };
 }
+
+async function callGateway(messages: Msg[]): Promise<string> {
+  const m = await rawGateway(messages);
+  return m.content ?? "";
+}
+
 
 function friendSystemPrompt(
   name: string | null,
