@@ -223,12 +223,22 @@ function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
         </button>
       </div>
 
-      {notifState !== "granted" && (
+      {notifState !== "granted" ? (
         <button
           onClick={enableNotifications}
           className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card text-sm hover:bg-accent"
         >
           <Bell className="h-4 w-4" /> Включить напоминания
+        </button>
+      ) : (
+        <button
+          onClick={async () => {
+            const left = await remindNow();
+            toast.success(left === 0 ? "Всё сделано на сегодня 🎉" : `Осталось дел: ${left}`);
+          }}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card text-sm hover:bg-accent"
+        >
+          <Bell className="h-4 w-4" /> Что я ещё не сделал
         </button>
       )}
     </div>
