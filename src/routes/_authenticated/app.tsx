@@ -137,7 +137,10 @@ function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
   const todayIso = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
-    if (typeof Notification !== "undefined") setNotifState(Notification.permission);
+    if (typeof Notification !== "undefined") {
+      setNotifState(Notification.permission);
+      if (Notification.permission === "granted") void scheduleRoutineReminders();
+    }
     const cacheKey = "lumen-brief-" + todayIso;
     const cached = typeof window !== "undefined" ? localStorage.getItem(cacheKey) : null;
     if (cached) {
