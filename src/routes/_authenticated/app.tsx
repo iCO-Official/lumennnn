@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { chatWithAi, resetAiChat, analyzeWeek, generateSchedule, dailyBrief } from "@/lib/ai.functions";
 import { syncGaming } from "@/lib/gaming.functions";
+import { scheduleRoutineReminders, remindNow } from "@/lib/reminders";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
