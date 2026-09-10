@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { chatWithAi, resetAiChat, analyzeWeek, generateSchedule, dailyBrief } from "@/lib/ai.functions";
 import { syncGaming } from "@/lib/gaming.functions";
+import { scheduleRoutineReminders, remindNow } from "@/lib/reminders";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -136,7 +137,10 @@ function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
   const todayIso = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
-    if (typeof Notification !== "undefined") setNotifState(Notification.permission);
+    if (typeof Notification !== "undefined") {
+      setNotifState(Notification.permission);
+      if (Notification.permission === "granted") void scheduleRoutineReminders();
+    }
     const cacheKey = "lumen-brief-" + todayIso;
     const cached = typeof window !== "undefined" ? localStorage.getItem(cacheKey) : null;
     if (cached) {
@@ -219,12 +223,22 @@ function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
         </button>
       </div>
 
-      {notifState !== "granted" && (
+      {notifState !== "granted" ? (
         <button
           onClick={enableNotifications}
           className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card text-sm hover:bg-accent"
         >
           <Bell className="h-4 w-4" /> Включить напоминания
+        </button>
+      ) : (
+        <button
+          onClick={async () => {
+            const left = await remindNow();
+            toast.success(left === 0 ? "Всё сделано на сегодня 🎉" : `Осталось дел: ${left}`);
+          }}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card text-sm hover:bg-accent"
+        >
+          <Bell className="h-4 w-4" /> Что я ещё не сделал
         </button>
       )}
     </div>
