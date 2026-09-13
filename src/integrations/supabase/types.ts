@@ -341,34 +341,43 @@ export type Database = {
           active: boolean
           created_at: string
           day_of_week: number | null
+          ends_on: string | null
           id: string
           sort_order: number
+          starts_on: string
           time_of_day: string | null
           title: string
           updated_at: string
           user_id: string
+          weekdays: number[]
         }
         Insert: {
           active?: boolean
           created_at?: string
           day_of_week?: number | null
+          ends_on?: string | null
           id?: string
           sort_order?: number
+          starts_on?: string
           time_of_day?: string | null
           title: string
           updated_at?: string
           user_id: string
+          weekdays?: number[]
         }
         Update: {
           active?: boolean
           created_at?: string
           day_of_week?: number | null
+          ends_on?: string | null
           id?: string
           sort_order?: number
+          starts_on?: string
           time_of_day?: string | null
           title?: string
           updated_at?: string
           user_id?: string
+          weekdays?: number[]
         }
         Relationships: []
       }
@@ -420,7 +429,9 @@ export type Database = {
           notes: string | null
           routine_id: string | null
           scheduled_for: string
+          scheduled_time: string | null
           scope: string
+          sort_order: number
           title: string
           updated_at: string
           user_id: string
@@ -433,7 +444,9 @@ export type Database = {
           notes?: string | null
           routine_id?: string | null
           scheduled_for?: string
+          scheduled_time?: string | null
           scope?: string
+          sort_order?: number
           title: string
           updated_at?: string
           user_id: string
@@ -446,7 +459,9 @@ export type Database = {
           notes?: string | null
           routine_id?: string | null
           scheduled_for?: string
+          scheduled_time?: string | null
           scope?: string
+          sort_order?: number
           title?: string
           updated_at?: string
           user_id?: string
