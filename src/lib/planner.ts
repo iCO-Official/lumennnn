@@ -161,7 +161,7 @@ export async function updateTaskInstance(id: string, values: Partial<Pick<Planne
 export async function updateRoutineFuture(routineId: string, fromDate: string, values: Partial<Pick<PlannerRoutine, "title" | "time_of_day" | "weekdays" | "active" | "sort_order">>) {
   const { error } = await supabase.from("routines").update(values).eq("id", routineId);
   if (error) throw error;
-  const update: Record<string, unknown> = {};
+  const update: Partial<Pick<PlannerTask, "title" | "scheduled_time" | "sort_order">> = {};
   if (values.title !== undefined) update.title = values.title;
   if (values.time_of_day !== undefined) update.scheduled_time = values.time_of_day;
   if (values.sort_order !== undefined) update.sort_order = values.sort_order;
