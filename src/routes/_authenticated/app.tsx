@@ -395,6 +395,19 @@ function PlansSection() {
 type Journal = { id: string; content: string; mood: number | null; entry_date: string; created_at: string };
 
 function JournalSection() {
+  const [tab, setTab] = useState<"thoughts" | "sleep">("thoughts");
+  return (
+    <div>
+      <div className="mb-5 grid grid-cols-2 border-b border-border">
+        <button onClick={() => setTab("thoughts")} className={`border-b-2 py-3 text-sm ${tab === "thoughts" ? "border-foreground" : "border-transparent text-muted-foreground"}`}>Мысли</button>
+        <button onClick={() => setTab("sleep")} className={`border-b-2 py-3 text-sm ${tab === "sleep" ? "border-foreground" : "border-transparent text-muted-foreground"}`}>Сон</button>
+      </div>
+      {tab === "thoughts" ? <JournalEntriesSection /> : <SleepSection />}
+    </div>
+  );
+}
+
+function JournalEntriesSection() {
   const [entries, setEntries] = useState<Journal[]>([]);
   const [content, setContent] = useState("");
   const [mood, setMood] = useState<number>(3);
