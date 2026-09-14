@@ -18,6 +18,8 @@ import { scheduleRoutineReminders, remindNow } from "@/lib/reminders";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
+import { PlansSection as PlannerPlansSection, RoutinesSection as PlannerRoutinesSection } from "@/components/planner-sections";
+import { LumenAiChat } from "@/components/lumen-ai-chat";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({ meta: [{ title: "Lumen — твой день" }] }),
@@ -28,12 +30,11 @@ export const Route = createFileRoute("/_authenticated/app")({
 type Section = "home" | "plans" | "routine" | "journal" | "sleep" | "ai" | "metrics";
 
 const SECTIONS: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "home", label: "Главная", icon: Home },
+  { id: "home", label: "Сегодня", icon: Home },
   { id: "plans", label: "Планы", icon: Calendar },
-  { id: "routine", label: "Рутина", icon: CalendarClock },
+  { id: "routine", label: "Рутины", icon: CalendarClock },
   { id: "journal", label: "Дневник", icon: NotebookPen },
-  { id: "sleep", label: "Сон", icon: Moon },
-  { id: "ai", label: "AI-друг", icon: Sparkles },
+  { id: "ai", label: "AI", icon: Sparkles },
 ];
 
 function AppPage() {
@@ -54,7 +55,7 @@ function AppPage() {
       <div className="pointer-events-none absolute inset-0 bg-grid opacity-30" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[400px] bg-glow" />
 
-      <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-2 sm:px-8 sm:pt-4">
+      {section !== "ai" && <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-2 sm:px-8 sm:pt-4">
         <LumenLogo />
         <div className="flex items-center gap-2">
           <ThemeToggle className="!h-11 !w-11" />
@@ -66,17 +67,17 @@ function AppPage() {
             <SettingsIcon className="h-5 w-5" />
           </Link>
         </div>
-      </header>
+      </header>}
 
-      <main className="relative z-10 mx-auto max-w-4xl px-5 pb-36 pt-3 sm:px-8 sm:pt-6">
-        <div className="mb-5">
+      <main className={`relative z-10 mx-auto max-w-4xl ${section === "ai" ? "" : "px-5 pb-36 pt-3 sm:px-8 sm:pt-6"}`}>
+        {section !== "ai" && <div className="mb-5">
           <div className="text-sm text-muted-foreground">
             <span translate="no">{greeting()}</span>{name ? ", " + name : ""}.
           </div>
           <h1 className="mt-1 font-serif text-2xl tracking-tight sm:text-3xl">
             <span translate="no">{todayLabel()}</span>
           </h1>
-        </div>
+        </div>}
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -87,18 +88,18 @@ function AppPage() {
             transition={{ duration: 0.2 }}
           >
             {section === "home" && <HomeSection onGo={setSection} />}
-            {section === "plans" && <PlansSection />}
-            {section === "routine" && <RoutinesSection />}
+            {section === "plans" && <PlannerPlansSection />}
+            {section === "routine" && <PlannerRoutinesSection />}
             {section === "journal" && <JournalSection />}
             {section === "sleep" && <SleepSection />}
             {section === "metrics" && <MetricsSection />}
-            {section === "ai" && <AiSection />}
+            {section === "ai" && <LumenAiChat />}
           </motion.div>
         </AnimatePresence>
       </main>
 
       {/* Bottom navigation */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-4xl items-stretch justify-between px-2">
           {SECTIONS.map((s) => {
             const Icon = s.icon;
@@ -108,14 +109,14 @@ function AppPage() {
                 key={s.id}
                 onClick={() => setSection(s.id)}
                 aria-label={s.label}
-                className={`flex flex-1 flex-col items-center gap-1 py-2.5 transition-colors ${
+                className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 transition-colors ${
                   active ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
-                <span className={`relative inline-flex h-9 w-full max-w-14 items-center justify-center rounded-2xl ${active ? "bg-accent" : ""}`}>
-                  <Icon className="h-[22px] w-[22px]" />
+                <span className={`relative inline-flex h-8 w-full max-w-12 items-center justify-center rounded-xl ${active ? "bg-accent" : ""}`}>
+                  <Icon className="h-5 w-5" />
                 </span>
-                <span className="text-[10px] leading-none">{s.label}</span>
+                <span className="truncate text-[10px] font-medium leading-none">{s.label}</span>
               </button>
             );
           })}
@@ -394,6 +395,19 @@ function PlansSection() {
 type Journal = { id: string; content: string; mood: number | null; entry_date: string; created_at: string };
 
 function JournalSection() {
+  const [tab, setTab] = useState<"thoughts" | "sleep">("thoughts");
+  return (
+    <div>
+      <div className="mb-5 grid grid-cols-2 border-b border-border">
+        <button onClick={() => setTab("thoughts")} className={`border-b-2 py-3 text-sm ${tab === "thoughts" ? "border-foreground" : "border-transparent text-muted-foreground"}`}>Мысли</button>
+        <button onClick={() => setTab("sleep")} className={`border-b-2 py-3 text-sm ${tab === "sleep" ? "border-foreground" : "border-transparent text-muted-foreground"}`}>Сон</button>
+      </div>
+      {tab === "thoughts" ? <JournalEntriesSection /> : <SleepSection />}
+    </div>
+  );
+}
+
+function JournalEntriesSection() {
   const [entries, setEntries] = useState<Journal[]>([]);
   const [content, setContent] = useState("");
   const [mood, setMood] = useState<number>(3);

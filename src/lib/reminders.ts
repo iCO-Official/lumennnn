@@ -13,7 +13,8 @@ const SUMMARY_HOURS = [9, 13, 18, 21];
 let timer: ReturnType<typeof setInterval> | null = null;
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 function firedKey(key: string) {
@@ -79,27 +80,17 @@ async function loadPending(): Promise<Pending[]> {
 
   const { data: tasks } = await supabase
     .from("tasks")
-    .select("id, title, completed, routine_id, scheduled_for")
+    .select("id, title, completed, scheduled_time, scheduled_for")
     .eq("user_id", u.user.id)
     .eq("scheduled_for", iso)
     .eq("completed", false);
 
   if (!tasks || tasks.length === 0) return [];
 
-  const routineIds = tasks.map((t) => t.routine_id).filter((v): v is string => !!v);
-  const times = new Map<string, string | null>();
-  if (routineIds.length > 0) {
-    const { data: routines } = await supabase
-      .from("routines")
-      .select("id, time_of_day")
-      .in("id", routineIds);
-    for (const r of routines ?? []) times.set(r.id, r.time_of_day);
-  }
-
   return tasks.map((t) => ({
     id: t.id,
     title: t.title,
-    time: t.routine_id ? (times.get(t.routine_id) ?? null) : null,
+    time: t.scheduled_time,
   }));
 }
 
