@@ -99,7 +99,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
     );
 
     const messages: Msg[] = [
-      { role: "system", content: system + "\n\n" + ROUTINE_TOOLS_HINT },
+      { role: "system", content: system + `\n\nСегодня ${new Date().toISOString().slice(0, 10)}.\n` + ROUTINE_TOOLS_HINT },
       ...((history ?? []) as Msg[]),
       { role: "user", content: data.message },
     ];

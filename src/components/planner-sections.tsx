@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +32,6 @@ import {
   updateTaskInstance,
   type PlannerRoutine,
   type PlannerTask,
-  type TaskDraft,
 } from "@/lib/planner";
 
 const SHORT_DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
@@ -49,6 +48,7 @@ export function PlansSection() {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<PlannerTask | null>(null);
+  const [editAllFuture, setEditAllFuture] = useState(false);
   const [scopeAction, setScopeAction] = useState<ScopeAction>(null);
 
   const range = useMemo(() => {
@@ -83,7 +83,7 @@ export function PlansSection() {
 
   function requestEdit(task: PlannerTask) {
     if (task.routine_id) setScopeAction({ task, mode: "edit" });
-    else setEditing(task);
+    else { setEditAllFuture(false); setEditing(task); }
   }
 
   function requestDelete(task: PlannerTask) {
@@ -128,8 +128,8 @@ export function PlansSection() {
 
       {loading ? <div className="py-16 text-center text-sm text-muted-foreground">Загрузка…</div> : <TaskList tasks={selectedTasks} onToggle={toggle} onEdit={requestEdit} onDelete={requestDelete} />}
 
-      {(adding || editing) && <TaskEditor task={editing} defaultDate={selectedDate} onClose={() => { setAdding(false); setEditing(null); }} onSaved={() => { setAdding(false); setEditing(null); void refresh(); }} />}
-      {scopeAction && <ScopeDialog action={scopeAction} onCancel={() => setScopeAction(null)} onToday={() => { if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, false); else { setEditing(scopeAction.task); setScopeAction(null); } }} onFuture={() => { if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, true); else { setEditing(scopeAction.task); setScopeAction(null); } }} />}
+      {(adding || editing) && <TaskEditor task={editing} editAllFuture={editAllFuture} defaultDate={selectedDate} onClose={() => { setAdding(false); setEditing(null); }} onSaved={() => { setAdding(false); setEditing(null); void refresh(); }} />}
+      {scopeAction && <ScopeDialog action={scopeAction} onCancel={() => setScopeAction(null)} onToday={() => { if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, false); else { setEditAllFuture(false); setEditing(scopeAction.task); setScopeAction(null); } }} onFuture={() => { if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, true); else { setEditAllFuture(true); setEditing(scopeAction.task); setScopeAction(null); } }} />}
     </section>
   );
 }
@@ -160,9 +160,9 @@ function MonthGrid({ month, selected, tasks, onSelect }: { month: string; select
   return <div><div className="mb-2 grid grid-cols-7 text-center text-[10px] text-muted-foreground">{["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map((d) => <span key={d}>{d}</span>)}</div><div className="grid grid-cols-7 gap-1">{Array.from({ length: 42 }, (_, i) => addDays(start, i)).map((iso) => { const date = new Date(`${iso}T12:00:00`); const inMonth = date.getMonth() === base.getMonth(); const count = tasks.filter((task) => task.scheduled_for === iso).length; return <button key={iso} onClick={() => onSelect(iso)} className={`aspect-square rounded-md text-xs ${selected === iso ? "bg-foreground text-background" : inMonth ? "text-foreground" : "text-muted-foreground/40"}`}><span>{date.getDate()}</span>{count > 0 && <span className="mx-auto mt-1 block h-1 w-1 rounded-full bg-current" />}</button>; })}</div></div>;
 }
 
-function TaskEditor({ task, defaultDate, onClose, onSaved }: { task: PlannerTask | null; defaultDate: string; onClose: () => void; onSaved: () => void }) {
+function TaskEditor({ task, editAllFuture, defaultDate, onClose, onSaved }: { task: PlannerTask | null; editAllFuture: boolean; defaultDate: string; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(task?.title ?? ""); const [date, setDate] = useState(task?.scheduled_for ?? defaultDate); const [time, setTime] = useState(task?.scheduled_time?.slice(0,5) ?? ""); const [repeat, setRepeat] = useState<"none" | "daily" | "custom">("none"); const [days, setDays] = useState<number[]>([]); const [saving, setSaving] = useState(false);
-  async function save(e: React.FormEvent) { e.preventDefault(); if (!title.trim()) return; setSaving(true); try { if (task) { if (task.routine_id) await updateRoutineFuture(task.routine_id, task.scheduled_for, { title: title.trim(), time_of_day: time || null }); else await updateTaskInstance(task.id, { title: title.trim(), scheduled_for: date, scheduled_time: time || null }); } else { const repeatDays = repeat === "daily" ? [0,1,2,3,4,5,6] : repeat === "custom" ? days : []; await createTask({ title: title.trim(), date, time: time || null, repeatDays }); } onSaved(); } catch (error) { toast.error(error instanceof Error ? error.message : "Не удалось сохранить"); } finally { setSaving(false); } }
+  async function save(e: React.FormEvent) { e.preventDefault(); if (!title.trim()) return; setSaving(true); try { if (task) { if (task.routine_id && editAllFuture) await updateRoutineFuture(task.routine_id, task.scheduled_for, { title: title.trim(), time_of_day: time || null }); else await updateTaskInstance(task.id, { title: title.trim(), scheduled_for: date, scheduled_time: time || null }); } else { const repeatDays = repeat === "daily" ? [0,1,2,3,4,5,6] : repeat === "custom" ? days : []; await createTask({ title: title.trim(), date, time: time || null, repeatDays }); } onSaved(); } catch (error) { toast.error(error instanceof Error ? error.message : "Не удалось сохранить"); } finally { setSaving(false); } }
   return <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm sm:items-center sm:justify-center"><form onSubmit={save} className="w-full border-t border-border bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-lg sm:border">
     <div className="mb-5 flex items-center justify-between"><h3 className="font-serif text-2xl">{task ? "Изменить задачу" : "Новая задача"}</h3><Button type="button" variant="ghost" size="icon" onClick={onClose}><X /></Button></div>
     <div className="space-y-3"><input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название" className="h-12 w-full rounded-md border border-input bg-card px-3 text-base outline-none focus:border-foreground"/><div className="grid grid-cols-2 gap-3"><label className="space-y-1 text-xs text-muted-foreground">Дата<input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"/></label><label className="space-y-1 text-xs text-muted-foreground">Время<input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"/></label></div>
