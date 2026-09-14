@@ -14,6 +14,11 @@ type Msg = {
 type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
 type GwChoice = { message: { content: string | null; tool_calls?: ToolCall[] } };
 
+export type AiProposal =
+  | { kind: "create_task"; title: string; date: string; time: string | null; repeatDays?: number[] }
+  | { kind: "update_task"; taskId: string; routineId?: string | null; fromDate: string; title: string; date: string; time: string | null }
+  | { kind: "schedule"; date: string; items: { title: string; time: string | null }[] };
+
 async function rawGateway(messages: Msg[], tools?: unknown[]): Promise<GwChoice["message"]> {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("LOVABLE_API_KEY не задан");
@@ -100,6 +105,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
     ];
 
     let reply = "";
+    let proposal: AiProposal | null = null;
     for (let step = 0; step < 5; step++) {
       const m = await rawGateway(messages, ROUTINE_TOOLS);
       if (m.tool_calls?.length) {
@@ -107,7 +113,9 @@ export const chatWithAi = createServerFn({ method: "POST" })
         for (const call of m.tool_calls) {
           let result: unknown;
           try {
-            result = await runRoutineTool(supabase, userId, call.function.name, JSON.parse(call.function.arguments || "{}"));
+            const toolResult = await runRoutineTool(supabase, userId, call.function.name, JSON.parse(call.function.arguments || "{}"));
+            result = toolResult.result;
+            if (toolResult.proposal) proposal = toolResult.proposal;
           } catch (e) {
             result = { error: e instanceof Error ? e.message : "ошибка" };
           }
@@ -125,24 +133,24 @@ export const chatWithAi = createServerFn({ method: "POST" })
       { user_id: userId, role: "assistant", content: reply },
     ]);
 
-    return { reply };
+    return { reply, proposal };
   });
 
-const ROUTINE_TOOLS_HINT = `У тебя есть полный доступ к расписанию (рутине) пользователя через инструменты.
-Если он просит составить/поменять/убрать дела в расписании — сразу используй инструменты, не спрашивай лишнего.
-day_of_week: 0=воскресенье … 6=суббота, null = каждый день. Время в формате HH:MM или null.
-После изменений коротко скажи, что именно сделал.`;
+const ROUTINE_TOOLS_HINT = `Ты помогаешь планировать, но НИКОГДА сам не меняешь данные.
+Когда пользователь просит создать задачу, составить расписание или перенести дело, используй подходящий инструмент предложения.
+Инструмент только формирует карточку подтверждения. Скажи коротко, что предлагаешь, и попроси подтвердить.
+Дата строго YYYY-MM-DD, время HH:MM или null. Для поиска существующего дела сначала используй list_tasks.`;
 
 const ROUTINE_TOOLS = [
   {
     type: "function",
     function: {
-      name: "list_routines",
-      description: "Показать дела в расписании на день недели",
+      name: "list_tasks",
+      description: "Найти задачи и экземпляры рутин пользователя по дате или названию",
       parameters: {
         type: "object",
-        properties: { day_of_week: { type: ["integer", "null"], description: "0-6 или null" } },
-        required: ["day_of_week"],
+        properties: { date: { type: ["string", "null"] }, query: { type: ["string", "null"] } },
+        required: ["date", "query"],
         additionalProperties: false,
       },
     },
@@ -150,12 +158,12 @@ const ROUTINE_TOOLS = [
   {
     type: "function",
     function: {
-      name: "set_routine",
-      description: "Заменить всё расписание на выбранный день списком дел",
+      name: "propose_schedule",
+      description: "Предложить несколько одноразовых задач на конкретную дату",
       parameters: {
         type: "object",
         properties: {
-          day_of_week: { type: ["integer", "null"] },
+          date: { type: "string" },
           items: {
             type: "array",
             items: {
@@ -166,7 +174,7 @@ const ROUTINE_TOOLS = [
             },
           },
         },
-        required: ["day_of_week", "items"],
+        required: ["date", "items"],
         additionalProperties: false,
       },
     },
@@ -174,32 +182,37 @@ const ROUTINE_TOOLS = [
   {
     type: "function",
     function: {
-      name: "add_routine",
-      description: "Добавить одно дело в расписание",
+      name: "propose_create_task",
+      description: "Предложить создать одну задачу или повторяющуюся рутину",
       parameters: {
         type: "object",
         properties: {
-          day_of_week: { type: ["integer", "null"] },
           title: { type: "string" },
+          date: { type: "string" },
+          time: { type: ["string", "null"] },
+          repeat_days: { type: "array", items: { type: "integer" }, description: "0=Вс…6=Сб; пусто для одноразовой задачи" },
+        },
+        required: ["title", "date", "time", "repeat_days"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_update_task",
+      description: "Предложить перенос или изменение найденной задачи",
+      parameters: {
+        type: "object",
+        properties: {
+          task_id: { type: "string" },
+          routine_id: { type: ["string", "null"] },
+          title: { type: "string" },
+          date: { type: "string" },
+          from_date: { type: "string" },
           time: { type: ["string", "null"] },
         },
-        required: ["day_of_week", "title", "time"],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "delete_routine",
-      description: "Удалить дело из расписания по его названию",
-      parameters: {
-        type: "object",
-        properties: {
-          day_of_week: { type: ["integer", "null"] },
-          title: { type: "string" },
-        },
-        required: ["day_of_week", "title"],
+        required: ["task_id", "routine_id", "title", "date", "from_date", "time"],
         additionalProperties: false,
       },
     },
@@ -209,53 +222,32 @@ const ROUTINE_TOOLS = [
 type SB = { from: (t: string) => any };
 
 async function runRoutineTool(supabase: SB, userId: string, name: string, args: any) {
-  const dow: number | null = args?.day_of_week ?? null;
-  const scoped = (q: any) => (dow === null ? q.is("day_of_week", null) : q.eq("day_of_week", dow));
   const time = (t: unknown) => (typeof t === "string" && /^\d{1,2}:\d{2}$/.test(t) ? t : null);
 
-  if (name === "list_routines") {
-    const { data } = await scoped(
-      supabase.from("routines").select("title, time_of_day, sort_order").eq("user_id", userId),
-    ).order("sort_order", { ascending: true });
-    return { items: data ?? [] };
+  if (name === "list_tasks") {
+    let query = supabase.from("tasks").select("id,title,scheduled_for,scheduled_time,routine_id").eq("user_id", userId);
+    if (args?.date) query = query.eq("scheduled_for", String(args.date));
+    if (args?.query) query = query.ilike("title", `%${String(args.query).slice(0, 100)}%`);
+    const { data } = await query.order("scheduled_for", { ascending: true }).limit(30);
+    return { result: { items: data ?? [] }, proposal: null };
   }
 
-  if (name === "set_routine") {
-    const items = (args?.items ?? []).filter((x: any) => x && typeof x.title === "string").slice(0, 50);
-    await scoped(supabase.from("routines").delete().eq("user_id", userId));
-    if (items.length) {
-      const { error } = await supabase.from("routines").insert(
-        items.map((it: any, i: number) => ({
-          user_id: userId,
-          title: String(it.title).slice(0, 200),
-          day_of_week: dow,
-          time_of_day: time(it.time),
-          sort_order: i,
-        })),
-      );
-      if (error) throw new Error(error.message);
-    }
-    return { ok: true, count: items.length };
+  if (name === "propose_schedule") {
+    const proposal: AiProposal = { kind: "schedule", date: String(args.date), items: (args.items ?? []).slice(0, 30).map((item: any) => ({ title: String(item.title).slice(0, 200), time: time(item.time) })) };
+    return { result: { proposed: true, count: proposal.items.length }, proposal };
   }
 
-  if (name === "add_routine") {
-    const { error } = await supabase.from("routines").insert({
-      user_id: userId,
-      title: String(args.title).slice(0, 200),
-      day_of_week: dow,
-      time_of_day: time(args.time),
-      sort_order: 999,
-    });
-    if (error) throw new Error(error.message);
-    return { ok: true };
+  if (name === "propose_create_task") {
+    const proposal: AiProposal = { kind: "create_task", title: String(args.title).slice(0, 200), date: String(args.date), time: time(args.time), repeatDays: Array.isArray(args.repeat_days) ? args.repeat_days.filter((day: unknown) => Number.isInteger(day) && Number(day) >= 0 && Number(day) <= 6) : [] };
+    return { result: { proposed: true }, proposal };
   }
 
-  if (name === "delete_routine") {
-    await scoped(supabase.from("routines").delete().eq("user_id", userId).ilike("title", `%${args.title}%`));
-    return { ok: true };
+  if (name === "propose_update_task") {
+    const proposal: AiProposal = { kind: "update_task", taskId: String(args.task_id), routineId: args.routine_id ? String(args.routine_id) : null, title: String(args.title).slice(0, 200), date: String(args.date), fromDate: String(args.from_date), time: time(args.time) };
+    return { result: { proposed: true }, proposal };
   }
 
-  return { error: "unknown tool" };
+  return { result: { error: "unknown tool" }, proposal: null };
 }
 
 export const dailyBrief = createServerFn({ method: "POST" })
