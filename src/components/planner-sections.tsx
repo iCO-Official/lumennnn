@@ -1,0 +1,195 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  addDays,
+  createTask,
+  ensureRoutineInstances,
+  loadRoutines,
+  loadTasks,
+  localIso,
+  removeTask,
+  updateRoutineFuture,
+  updateTaskInstance,
+  type PlannerRoutine,
+  type PlannerTask,
+  type TaskDraft,
+} from "@/lib/planner";
+
+const SHORT_DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
+type View = "day" | "week" | "month";
+type ScopeAction = { task: PlannerTask; mode: "edit" | "delete" } | null;
+
+const formatShortDate = (iso: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${iso}T12:00:00`));
+
+export function PlansSection() {
+  const [view, setView] = useState<View>("day");
+  const [selectedDate, setSelectedDate] = useState(localIso());
+  const [tasks, setTasks] = useState<PlannerTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<PlannerTask | null>(null);
+  const [scopeAction, setScopeAction] = useState<ScopeAction>(null);
+
+  const range = useMemo(() => {
+    if (view === "day") return { from: selectedDate, to: selectedDate };
+    if (view === "week") {
+      const date = new Date(`${selectedDate}T12:00:00`);
+      const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
+      const from = addDays(selectedDate, mondayOffset);
+      return { from, to: addDays(from, 6) };
+    }
+    const date = new Date(`${selectedDate}T12:00:00`);
+    const from = localIso(new Date(date.getFullYear(), date.getMonth(), 1));
+    const to = localIso(new Date(date.getFullYear(), date.getMonth() + 1, 0));
+    return { from, to };
+  }, [selectedDate, view]);
+
+  async function refresh() {
+    setLoading(true);
+    try { setTasks(await loadTasks(range.from, range.to)); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Не удалось загрузить планы"); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { void refresh(); }, [range.from, range.to]);
+
+  async function toggle(task: PlannerTask) {
+    const completed = !task.completed;
+    setTasks((current) => current.map((item) => item.id === task.id ? { ...item, completed, completed_at: completed ? new Date().toISOString() : null } : item));
+    const { error } = await supabase.from("tasks").update({ completed, completed_at: completed ? new Date().toISOString() : null }).eq("id", task.id);
+    if (error) { toast.error(error.message); void refresh(); }
+  }
+
+  function requestEdit(task: PlannerTask) {
+    if (task.routine_id) setScopeAction({ task, mode: "edit" });
+    else setEditing(task);
+  }
+
+  function requestDelete(task: PlannerTask) {
+    if (task.routine_id) setScopeAction({ task, mode: "delete" });
+    else void deleteTask(task, false);
+  }
+
+  async function deleteTask(task: PlannerTask, allFuture: boolean) {
+    setTasks((current) => current.filter((item) => item.id !== task.id));
+    setScopeAction(null);
+    try { await removeTask(task, allFuture); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Не удалось удалить"); void refresh(); }
+  }
+
+  const selectedTasks = tasks.filter((task) => task.scheduled_for === selectedDate);
+  const done = selectedTasks.filter((task) => task.completed).length;
+  const percent = selectedTasks.length ? Math.round(done / selectedTasks.length * 100) : 0;
+
+  return (
+    <section className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground">{formatShortDate(selectedDate)}</p>
+          <h2 className="font-serif text-3xl">Планы</h2>
+        </div>
+        <Button size="icon" className="rounded-full" onClick={() => setAdding(true)} aria-label="Добавить задачу"><Plus /></Button>
+      </div>
+
+      <div className="grid grid-cols-3 border-b border-border">
+        {([['day','Сегодня'], ['week','Неделя'], ['month','Месяц']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setView(id)} className={`border-b-2 px-3 py-3 text-sm ${view === id ? "border-foreground text-foreground" : "border-transparent text-muted-foreground"}`}>{label}</button>
+        ))}
+      </div>
+
+      {view === "week" && <WeekStrip from={range.from} selected={selectedDate} tasks={tasks} onSelect={setSelectedDate} />}
+      {view === "month" && <MonthGrid month={selectedDate} selected={selectedDate} tasks={tasks} onSelect={setSelectedDate} />}
+
+      <div className="space-y-2 border-b border-border pb-4">
+        <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Выполнено</span><strong>{done}/{selectedTasks.length} · {percent}%</strong></div>
+        <div className="h-1 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-foreground transition-[width]" style={{ width: `${percent}%` }} /></div>
+      </div>
+
+      {loading ? <div className="py-16 text-center text-sm text-muted-foreground">Загрузка…</div> : <TaskList tasks={selectedTasks} onToggle={toggle} onEdit={requestEdit} onDelete={requestDelete} />}
+
+      {(adding || editing) && <TaskEditor task={editing} defaultDate={selectedDate} onClose={() => { setAdding(false); setEditing(null); }} onSaved={() => { setAdding(false); setEditing(null); void refresh(); }} />}
+      {scopeAction && <ScopeDialog action={scopeAction} onCancel={() => setScopeAction(null)} onToday={() => { if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, false); else { setEditing(scopeAction.task); setScopeAction(null); } }} onFuture={() => { if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, true); else { setEditing(scopeAction.task); setScopeAction(null); } }} />}
+    </section>
+  );
+}
+
+function TaskList({ tasks, onToggle, onEdit, onDelete }: { tasks: PlannerTask[]; onToggle: (task: PlannerTask) => void; onEdit: (task: PlannerTask) => void; onDelete: (task: PlannerTask) => void }) {
+  const timed = tasks.filter((task) => task.scheduled_time).sort((a, b) => (a.scheduled_time ?? "").localeCompare(b.scheduled_time ?? "") || a.sort_order - b.sort_order);
+  const untimed = tasks.filter((task) => !task.scheduled_time).sort((a, b) => a.sort_order - b.sort_order);
+  if (!tasks.length) return <div className="border-y border-border py-12 text-center text-sm text-muted-foreground">На этот день ничего не запланировано</div>;
+  return <div className="space-y-7"><TaskGroup tasks={timed} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />{untimed.length > 0 && <div><h3 className="mb-2 text-xs font-medium uppercase text-muted-foreground">Без времени</h3><TaskGroup tasks={untimed} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} /></div>}</div>;
+}
+
+function TaskGroup({ tasks, onToggle, onEdit, onDelete }: { tasks: PlannerTask[]; onToggle: (task: PlannerTask) => void; onEdit: (task: PlannerTask) => void; onDelete: (task: PlannerTask) => void }) {
+  return <ul className="divide-y divide-border border-y border-border">{tasks.map((task) => <li key={task.id} className="flex min-h-14 items-center gap-3 py-2">
+    <button onClick={() => onToggle(task)} aria-label={task.completed ? "Вернуть задачу" : "Выполнить задачу"} className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${task.completed ? "border-foreground bg-foreground text-background" : "border-muted-foreground"}`}>{task.completed && <Check className="h-4 w-4" />}</button>
+    <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">{task.scheduled_time?.slice(0,5) ?? "—"}</span>
+    <div className="min-w-0 flex-1"><p className={`break-words text-sm ${task.completed ? "text-muted-foreground line-through" : ""}`}>{task.title}</p>{task.routine_id && <span className="text-[10px] text-muted-foreground">Рутина</span>}</div>
+    <Button variant="ghost" size="icon-sm" onClick={() => onEdit(task)} aria-label="Редактировать"><Pencil /></Button>
+    <Button variant="ghost" size="icon-sm" onClick={() => onDelete(task)} aria-label="Удалить"><Trash2 /></Button>
+  </li>)}</ul>;
+}
+
+function WeekStrip({ from, selected, tasks, onSelect }: { from: string; selected: string; tasks: PlannerTask[]; onSelect: (iso: string) => void }) {
+  return <div className="grid grid-cols-7 gap-1">{Array.from({ length: 7 }, (_, index) => addDays(from, index)).map((iso) => { const date = new Date(`${iso}T12:00:00`); const count = tasks.filter((task) => task.scheduled_for === iso).length; return <button key={iso} onClick={() => onSelect(iso)} className={`flex min-w-0 flex-col items-center gap-1 rounded-md py-2 text-xs ${selected === iso ? "bg-foreground text-background" : "text-muted-foreground"}`}><span>{SHORT_DAYS[date.getDay()]}</span><strong className="text-sm">{date.getDate()}</strong><span className="h-1 text-[9px]">{count || ""}</span></button>; })}</div>;
+}
+
+function MonthGrid({ month, selected, tasks, onSelect }: { month: string; selected: string; tasks: PlannerTask[]; onSelect: (iso: string) => void }) {
+  const base = new Date(`${month}T12:00:00`); const first = new Date(base.getFullYear(), base.getMonth(), 1); const offset = first.getDay() === 0 ? 6 : first.getDay() - 1; const start = localIso(new Date(base.getFullYear(), base.getMonth(), 1 - offset));
+  return <div><div className="mb-2 grid grid-cols-7 text-center text-[10px] text-muted-foreground">{["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map((d) => <span key={d}>{d}</span>)}</div><div className="grid grid-cols-7 gap-1">{Array.from({ length: 42 }, (_, i) => addDays(start, i)).map((iso) => { const date = new Date(`${iso}T12:00:00`); const inMonth = date.getMonth() === base.getMonth(); const count = tasks.filter((task) => task.scheduled_for === iso).length; return <button key={iso} onClick={() => onSelect(iso)} className={`aspect-square rounded-md text-xs ${selected === iso ? "bg-foreground text-background" : inMonth ? "text-foreground" : "text-muted-foreground/40"}`}><span>{date.getDate()}</span>{count > 0 && <span className="mx-auto mt-1 block h-1 w-1 rounded-full bg-current" />}</button>; })}</div></div>;
+}
+
+function TaskEditor({ task, defaultDate, onClose, onSaved }: { task: PlannerTask | null; defaultDate: string; onClose: () => void; onSaved: () => void }) {
+  const [title, setTitle] = useState(task?.title ?? ""); const [date, setDate] = useState(task?.scheduled_for ?? defaultDate); const [time, setTime] = useState(task?.scheduled_time?.slice(0,5) ?? ""); const [repeat, setRepeat] = useState<"none" | "daily" | "custom">("none"); const [days, setDays] = useState<number[]>([]); const [saving, setSaving] = useState(false);
+  async function save(e: React.FormEvent) { e.preventDefault(); if (!title.trim()) return; setSaving(true); try { if (task) { if (task.routine_id) await updateRoutineFuture(task.routine_id, task.scheduled_for, { title: title.trim(), time_of_day: time || null }); else await updateTaskInstance(task.id, { title: title.trim(), scheduled_for: date, scheduled_time: time || null }); } else { const repeatDays = repeat === "daily" ? [0,1,2,3,4,5,6] : repeat === "custom" ? days : []; await createTask({ title: title.trim(), date, time: time || null, repeatDays }); } onSaved(); } catch (error) { toast.error(error instanceof Error ? error.message : "Не удалось сохранить"); } finally { setSaving(false); } }
+  return <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm sm:items-center sm:justify-center"><form onSubmit={save} className="w-full border-t border-border bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-lg sm:border">
+    <div className="mb-5 flex items-center justify-between"><h3 className="font-serif text-2xl">{task ? "Изменить задачу" : "Новая задача"}</h3><Button type="button" variant="ghost" size="icon" onClick={onClose}><X /></Button></div>
+    <div className="space-y-3"><input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название" className="h-12 w-full rounded-md border border-input bg-card px-3 text-base outline-none focus:border-foreground"/><div className="grid grid-cols-2 gap-3"><label className="space-y-1 text-xs text-muted-foreground">Дата<input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"/></label><label className="space-y-1 text-xs text-muted-foreground">Время<input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"/></label></div>
+    {!task && <><label className="block text-xs text-muted-foreground">Повторение<select value={repeat} onChange={(e) => setRepeat(e.target.value as typeof repeat)} className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"><option value="none">Нет</option><option value="daily">Каждый день</option><option value="custom">Выбранные дни</option></select></label>{repeat === "custom" && <DayPicker value={days} onChange={setDays}/>}</>}</div>
+    <Button className="mt-5 h-12 w-full rounded-full" disabled={saving || !title.trim() || (repeat === "custom" && !days.length)}>{saving ? "Сохраняю…" : "Сохранить"}</Button>
+  </form></div>;
+}
+
+function ScopeDialog({ action, onCancel, onToday, onFuture }: { action: NonNullable<ScopeAction>; onCancel: () => void; onToday: () => void; onFuture: () => void }) {
+  return <div className="fixed inset-0 z-50 flex items-end bg-background/70 p-4 backdrop-blur-sm sm:items-center sm:justify-center"><div className="w-full max-w-sm rounded-lg border border-border bg-card p-5"><h3 className="font-serif text-2xl">{action.mode === "edit" ? "Что изменить?" : "Что удалить?"}</h3><p className="mt-2 text-sm text-muted-foreground">Прошедшие дни останутся без изменений.</p><div className="mt-5 space-y-2"><Button className="h-11 w-full" onClick={onToday}>Только сегодня</Button><Button className="h-11 w-full" variant="secondary" onClick={onFuture}>Все будущие</Button><Button className="h-11 w-full" variant="ghost" onClick={onCancel}>Отмена</Button></div></div></div>;
+}
+
+function DayPicker({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) { return <div className="grid grid-cols-7 gap-1">{MONDAY_FIRST.map((day) => <button type="button" key={day} onClick={() => onChange(value.includes(day) ? value.filter((item) => item !== day) : [...value, day])} className={`aspect-square rounded-full text-xs ${value.includes(day) ? "bg-foreground text-background" : "border border-border text-muted-foreground"}`}>{SHORT_DAYS[day]}</button>)}</div>; }
+
+export function RoutinesSection() {
+  const [routines, setRoutines] = useState<PlannerRoutine[]>([]); const [loading, setLoading] = useState(true); const [editing, setEditing] = useState<PlannerRoutine | null>(null); const [creating, setCreating] = useState(false);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  async function refresh() { setLoading(true); try { setRoutines(await loadRoutines()); } catch (error) { toast.error(error instanceof Error ? error.message : "Не удалось загрузить рутины"); } finally { setLoading(false); } }
+  useEffect(() => { void refresh(); }, []);
+  async function dragEnd(event: DragEndEvent) { if (!event.over || event.active.id === event.over.id) return; const oldIndex = routines.findIndex((r) => r.id === event.active.id); const newIndex = routines.findIndex((r) => r.id === event.over?.id); const next = arrayMove(routines, oldIndex, newIndex).map((r, i) => ({ ...r, sort_order: i })); setRoutines(next); await Promise.all(next.map((r) => supabase.from("routines").update({ sort_order: r.sort_order }).eq("id", r.id))); }
+  async function toggle(routine: PlannerRoutine) { const active = !routine.active; setRoutines((items) => items.map((item) => item.id === routine.id ? { ...item, active } : item)); const { error } = await supabase.from("routines").update({ active }).eq("id", routine.id); if (error) toast.error(error.message); }
+  async function remove(routine: PlannerRoutine) { if (!confirm(`Удалить «${routine.title}» и все будущие экземпляры?`)) return; const today = localIso(); const { error } = await supabase.from("routines").update({ active: false, ends_on: addDays(today,-1) }).eq("id", routine.id); if (!error) await supabase.from("tasks").delete().eq("routine_id", routine.id).gte("scheduled_for", today); if (error) toast.error(error.message); else void refresh(); }
+  return <section className="space-y-5"><div className="flex items-end justify-between"><div><p className="text-xs text-muted-foreground">Повторяющиеся дела</p><h2 className="font-serif text-3xl">Рутины</h2></div><Button size="icon" className="rounded-full" onClick={() => setCreating(true)}><Plus /></Button></div>
+    {loading ? <div className="py-16 text-center text-sm text-muted-foreground">Загрузка…</div> : routines.length === 0 ? <div className="border-y border-border py-12 text-center text-sm text-muted-foreground">Добавь первую рутину</div> : <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnd}><SortableContext items={routines.map((r) => r.id)} strategy={verticalListSortingStrategy}><ul className="divide-y divide-border border-y border-border">{routines.map((routine) => <RoutineRow key={routine.id} routine={routine} onToggle={toggle} onEdit={setEditing} onDelete={remove}/>)}</ul></SortableContext></DndContext>}
+    {(creating || editing) && <RoutineEditor routine={editing} onClose={() => { setCreating(false); setEditing(null); }} onSaved={() => { setCreating(false); setEditing(null); void refresh(); }}/>} </section>;
+}
+
+function RoutineRow({ routine, onToggle, onEdit, onDelete }: { routine: PlannerRoutine; onToggle: (r: PlannerRoutine) => void; onEdit: (r: PlannerRoutine) => void; onDelete: (r: PlannerRoutine) => void }) { const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: routine.id }); return <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={`flex min-h-16 items-center gap-2 bg-background py-2 ${routine.active ? "" : "opacity-45"}`}><button {...attributes} {...listeners} className="touch-none p-2 text-muted-foreground" aria-label="Изменить порядок"><GripVertical className="h-5 w-5"/></button><span className="w-12 font-mono text-xs text-muted-foreground">{routine.time_of_day?.slice(0,5) ?? "—"}</span><div className="min-w-0 flex-1"><p className="truncate text-sm">{routine.title}</p><p className="truncate text-[10px] text-muted-foreground">{routine.weekdays.length === 7 ? "Каждый день" : MONDAY_FIRST.filter((d) => routine.weekdays.includes(d)).map((d) => SHORT_DAYS[d]).join(" · ")}</p></div><button onClick={() => onToggle(routine)} className={`relative h-6 w-11 rounded-full transition-colors ${routine.active ? "bg-foreground" : "bg-secondary"}`} aria-label={routine.active ? "Выключить" : "Включить"}><span className={`absolute top-1 h-4 w-4 rounded-full bg-background transition-transform ${routine.active ? "translate-x-5" : "translate-x-1"}`}/></button><Button variant="ghost" size="icon-sm" onClick={() => onEdit(routine)}><Pencil /></Button><Button variant="ghost" size="icon-sm" onClick={() => onDelete(routine)}><Trash2 /></Button></li>; }
+
+function RoutineEditor({ routine, onClose, onSaved }: { routine: PlannerRoutine | null; onClose: () => void; onSaved: () => void }) { const [title,setTitle]=useState(routine?.title ?? ""); const [time,setTime]=useState(routine?.time_of_day?.slice(0,5) ?? ""); const [days,setDays]=useState(routine?.weekdays ?? [1,2,3,4,5]); const [saving,setSaving]=useState(false); async function save(e:React.FormEvent){e.preventDefault();setSaving(true);try{if(routine){await updateRoutineFuture(routine.id,localIso(),{title:title.trim(),time_of_day:time||null,weekdays:days});}else{const {data:u}=await supabase.auth.getUser();if(!u.user)throw new Error("Войди в аккаунт");const {error}=await supabase.from("routines").insert({user_id:u.user.id,title:title.trim(),time_of_day:time||null,weekdays:days,starts_on:localIso(),day_of_week:days.length===1?days[0]:null,sort_order:999});if(error)throw error;await ensureRoutineInstances(localIso(),addDays(localIso(),31));}onSaved();}catch(error){toast.error(error instanceof Error?error.message:"Не удалось сохранить");}finally{setSaving(false);}} return <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm sm:items-center sm:justify-center"><form onSubmit={save} className="w-full border-t border-border bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-lg sm:border"><div className="mb-5 flex items-center justify-between"><h3 className="font-serif text-2xl">{routine?"Изменить рутину":"Новая рутина"}</h3><Button type="button" variant="ghost" size="icon" onClick={onClose}><X/></Button></div><div className="space-y-3"><input autoFocus value={title} onChange={(e)=>setTitle(e.target.value)} placeholder="Название" className="h-12 w-full rounded-md border border-input bg-card px-3 text-base"/><label className="block text-xs text-muted-foreground">Время<input type="time" value={time} onChange={(e)=>setTime(e.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"/></label><DayPicker value={days} onChange={setDays}/></div><Button className="mt-5 h-12 w-full rounded-full" disabled={saving||!title.trim()||!days.length}>{saving?"Сохраняю…":"Сохранить"}</Button></form></div>; }
