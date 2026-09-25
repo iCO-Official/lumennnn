@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPushTickRouteImport } from './routes/api/push-tick'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppMoreRouteImport } from './routes/_authenticated/app.more'
@@ -28,6 +29,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPushTickRoute = ApiPushTickRouteImport.update({
+  id: '/api/push-tick',
+  path: '/api/push-tick',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
@@ -50,6 +56,7 @@ const AuthenticatedAppMoreRoute = AuthenticatedAppMoreRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/api/push-tick': typeof ApiPushTickRoute
   '/app/more': typeof AuthenticatedAppMoreRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/api/push-tick': typeof ApiPushTickRoute
   '/app/more': typeof AuthenticatedAppMoreRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -66,20 +74,28 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/api/push-tick': typeof ApiPushTickRoute
   '/_authenticated/app/more': typeof AuthenticatedAppMoreRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/app/more' | '/app/settings' | '/app/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/api/push-tick'
+    | '/app/more'
+    | '/app/settings'
+    | '/app/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/app/more' | '/app/settings' | '/app'
+  to: '/' | '/auth' | '/api/push-tick' | '/app/more' | '/app/settings' | '/app'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/api/push-tick'
     | '/_authenticated/app/more'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/'
@@ -89,6 +105,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPushTickRoute: typeof ApiPushTickRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -112,6 +129,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/push-tick': {
+      id: '/api/push-tick'
+      path: '/api/push-tick'
+      fullPath: '/api/push-tick'
+      preLoaderRoute: typeof ApiPushTickRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app/': {
@@ -157,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPushTickRoute: ApiPushTickRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

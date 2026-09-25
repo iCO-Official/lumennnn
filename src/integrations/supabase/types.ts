@@ -256,6 +256,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      push_subscriptions: {
+        Row: {
+          auth: string;
+          created_at: string;
+          endpoint: string;
+          id: string;
+          p256dh: string;
+          test_requested: boolean;
+          timezone: string;
+          user_id: string;
+        };
+        Insert: {
+          auth: string;
+          created_at?: string;
+          endpoint: string;
+          id?: string;
+          p256dh: string;
+          test_requested?: boolean;
+          timezone?: string;
+          user_id: string;
+        };
+        Update: {
+          auth?: string;
+          created_at?: string;
+          endpoint?: string;
+          id?: string;
+          p256dh?: string;
+          test_requested?: boolean;
+          timezone?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           age: number | null;
@@ -488,7 +521,30 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      push_due: {
+        Args: { p_secret: string };
+        Returns: {
+          auth: string;
+          body: string;
+          endpoint: string;
+          p256dh: string;
+          tag: string;
+          title: string;
+        }[];
+      };
+      push_keys: {
+        Args: { p_secret: string };
+        Returns: { vapid_private: string | null; vapid_public: string | null }[];
+      };
+      push_public_key: { Args: never; Returns: string | null };
+      push_remove_subscription: {
+        Args: { p_endpoint: string; p_secret: string };
+        Returns: undefined;
+      };
+      push_set_keys: {
+        Args: { p_private: string; p_public: string; p_secret: string };
+        Returns: undefined;
+      };
     };
     Enums: {
       [_ in never]: never;

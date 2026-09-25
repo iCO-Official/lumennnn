@@ -27,3 +27,20 @@ export function routineOccurrences(rule: RoutineRule, from: string, to: string) 
   }
   return days;
 }
+
+/**
+ * Parses a quick schedule, one item per line: "06:00 Подъём", "6.30 — Душ",
+ * or just "Купить тетрадь" (no time).
+ */
+export function parseScheduleLines(text: string) {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^(\d{1,2})[:.](\d{2})\s*[-–—]?\s*(.*)$/);
+      if (match && Number(match[1]) < 24 && Number(match[2]) < 60 && match[3].trim())
+        return { time: `${match[1].padStart(2, "0")}:${match[2]}`, title: match[3].trim() };
+      return { time: null, title: line };
+    });
+}

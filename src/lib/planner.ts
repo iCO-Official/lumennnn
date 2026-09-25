@@ -32,6 +32,7 @@ export type TaskDraft = {
   date: string;
   time: string | null;
   repeatDays: number[];
+  sortOrder?: number;
 };
 
 type RoutineValues = Partial<
@@ -121,6 +122,7 @@ export async function createRoutine(values: {
   time: string | null;
   weekdays: number[];
   startsOn: string;
+  sortOrder?: number;
 }) {
   const user = await requireUser();
   const { data, error } = await supabase
@@ -131,7 +133,7 @@ export async function createRoutine(values: {
       time_of_day: values.time,
       weekdays: values.weekdays,
       starts_on: values.startsOn,
-      sort_order: 999,
+      sort_order: values.sortOrder ?? 999,
     })
     .select(ROUTINE_FIELDS)
     .single();
@@ -147,6 +149,7 @@ export async function createTask(draft: TaskDraft) {
       time: draft.time,
       weekdays: draft.repeatDays,
       startsOn: draft.date,
+      sortOrder: draft.sortOrder,
     });
     return { kind: "routine" as const, data };
   }
@@ -159,6 +162,7 @@ export async function createTask(draft: TaskDraft) {
       title: draft.title,
       scheduled_for: draft.date,
       scheduled_time: draft.time,
+      sort_order: draft.sortOrder ?? 0,
       scope: "day",
     })
     .select(TASK_FIELDS)

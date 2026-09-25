@@ -5,7 +5,14 @@ import { motion } from "motion/react";
 import { Sparkles, CalendarClock, Ruler, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { dailyBrief } from "@/lib/ai.functions";
-import { scheduleRoutineReminders, remindNow } from "@/lib/reminders";
+import { remindNow } from "@/lib/reminders";
+import {
+  enablePush,
+  getPushStatus,
+  requestTestPush,
+  syncPushSubscription,
+  type PushStatus,
+} from "@/lib/push";
 import { Loader } from "./shared";
 
 export type Section = "home" | "plans" | "routine" | "journal" | "sleep" | "ai" | "metrics";
@@ -16,14 +23,13 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
   const brief = useServerFn(dailyBrief);
   const [data, setData] = useState<Brief | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notifState, setNotifState] = useState<string>("default");
+  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
+  const [enabling, setEnabling] = useState(false);
   const todayIso = localIso();
 
   useEffect(() => {
-    if (typeof Notification !== "undefined") {
-      setNotifState(Notification.permission);
-      if (Notification.permission === "granted") void scheduleRoutineReminders();
-    }
+    void getPushStatus().then(setPushStatus);
+    void syncPushSubscription();
     const cacheKey = "lumen-brief-" + todayIso;
     const cached = typeof window !== "undefined" ? localStorage.getItem(cacheKey) : null;
     if (cached) {
@@ -49,20 +55,17 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
   }, []);
 
   async function enableNotifications() {
-    if (typeof Notification === "undefined") {
-      toast.error("Уведомления не поддерживаются");
-      return;
-    }
-    const p = await Notification.requestPermission();
-    setNotifState(p);
-    if (p === "granted") {
-      await scheduleRoutineReminders();
-      new Notification("Lumen", {
-        body: "Готово — буду напоминать про твои дела 🙌",
-        icon: "/icon-192.png",
-      });
-    } else {
-      toast.error("Разреши уведомления в настройках браузера");
+    setEnabling(true);
+    try {
+      await enablePush();
+      await requestTestPush();
+      setPushStatus("on");
+      toast.success("Готово! В течение минуты придёт тестовое уведомление");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось включить уведомления");
+      setPushStatus(await getPushStatus());
+    } finally {
+      setEnabling(false);
     }
   }
 
@@ -134,14 +137,21 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
         </button>
       </div>
 
-      {notifState !== "granted" ? (
+      {pushStatus === "needs-install" ? (
+        <p className="rounded-3xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
+          <Bell className="mx-auto mb-2 h-4 w-4" />
+          Чтобы получать напоминания, добавь Lumen на экран «Домой» (Поделиться → На экран «Домой»)
+          и открой оттуда.
+        </p>
+      ) : pushStatus && pushStatus !== "on" ? (
         <button
           onClick={enableNotifications}
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card text-sm hover:bg-accent"
+          disabled={enabling}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card text-sm hover:bg-accent disabled:opacity-50"
         >
-          <Bell className="h-4 w-4" /> Включить напоминания
+          <Bell className="h-4 w-4" /> {enabling ? "Включаю…" : "Включить напоминания"}
         </button>
-      ) : (
+      ) : pushStatus === "on" ? (
         <button
           onClick={async () => {
             const left = await remindNow();
@@ -151,7 +161,7 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
         >
           <Bell className="h-4 w-4" /> Что я ещё не сделал
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

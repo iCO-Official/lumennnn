@@ -2,7 +2,14 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LumenLogo } from "@/components/lumen-logo";
-import { ArrowLeft, ChevronRight, Loader2, LogOut } from "lucide-react";
+import { ArrowLeft, Bell, ChevronRight, Loader2, LogOut } from "lucide-react";
+import {
+  disablePush,
+  enablePush,
+  getPushStatus,
+  requestTestPush,
+  type PushStatus,
+} from "@/lib/push";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
@@ -100,6 +107,8 @@ function SettingsPage() {
           </span>
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </Link>
+
+        <NotificationsCard />
 
         {loading ? (
           <div className="flex h-40 items-center justify-center text-muted-foreground">
@@ -202,5 +211,83 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-xs text-muted-foreground">{label}</span>
       {children}
     </label>
+  );
+}
+
+const PUSH_TEXT: Record<PushStatus, string> = {
+  on: "Включены на этом устройстве",
+  off: "Выключены",
+  denied: "Запрещены в настройках iPhone: Настройки → Уведомления → Lumen",
+  "needs-install": "Добавь Lumen на экран «Домой» и открой оттуда",
+  unsupported: "Этот браузер не поддерживает уведомления",
+};
+
+function NotificationsCard() {
+  const [status, setStatus] = useState<PushStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void getPushStatus().then(setStatus);
+  }, []);
+
+  async function run(action: () => Promise<void>, success: string) {
+    setBusy(true);
+    try {
+      await action();
+      toast.success(success);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не получилось");
+    } finally {
+      setStatus(await getPushStatus());
+      setBusy(false);
+    }
+  }
+
+  const button =
+    "h-10 flex-1 rounded-full border border-border text-sm transition-colors hover:bg-accent disabled:opacity-50";
+  return (
+    <div className="mb-6 rounded-2xl border border-border bg-card px-4 py-3">
+      <div className="flex items-center gap-2 text-sm">
+        <Bell className="h-4 w-4" /> Напоминания
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {status ? PUSH_TEXT[status] : "Проверяю…"}
+      </p>
+      {(status === "on" || status === "off") && (
+        <div className="mt-3 flex gap-2">
+          {status === "off" ? (
+            <button
+              disabled={busy}
+              className={button}
+              onClick={() =>
+                run(async () => {
+                  await enablePush();
+                  await requestTestPush();
+                }, "Включено. Тестовое уведомление придёт в течение минуты")
+              }
+            >
+              Включить
+            </button>
+          ) : (
+            <>
+              <button
+                disabled={busy}
+                className={button}
+                onClick={() => run(requestTestPush, "Тестовое уведомление придёт в течение минуты")}
+              >
+                Проверить
+              </button>
+              <button
+                disabled={busy}
+                className={button}
+                onClick={() => run(disablePush, "Напоминания выключены")}
+              >
+                Выключить
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

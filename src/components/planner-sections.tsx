@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext,
   PointerSensor,
@@ -35,6 +36,7 @@ import {
   type PlannerRoutine,
   type PlannerTask,
 } from "@/lib/planner";
+import { parseScheduleLines } from "@/lib/routine-schedule";
 
 const SHORT_DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
@@ -445,9 +447,16 @@ function TaskEditor({
   const [repeat, setRepeat] = useState<"none" | "daily" | "custom">("none");
   const [days, setDays] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<"one" | "list">("one");
+  const [listText, setListText] = useState("");
+  const listItems = mode === "list" ? parseScheduleLines(listText) : [];
+  const seriesEdit = !!task?.routine_id && editAllFuture;
+  const canSave =
+    (mode === "list" ? listItems.length > 0 : !!title.trim()) &&
+    !(repeat === "custom" && !days.length);
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!canSave) return;
     setSaving(true);
     try {
       if (task) {
@@ -465,7 +474,10 @@ function TaskEditor({
       } else {
         const repeatDays =
           repeat === "daily" ? [0, 1, 2, 3, 4, 5, 6] : repeat === "custom" ? days : [];
-        await createTask({ title: title.trim(), date, time: time || null, repeatDays });
+        const items = mode === "list" ? listItems : [{ title: title.trim(), time: time || null }];
+        for (const [index, item] of items.entries())
+          await createTask({ ...item, date, repeatDays, sortOrder: index });
+        if (items.length > 1) toast.success(`Добавлено: ${items.length}`);
       }
       onSaved();
     } catch (error) {
@@ -474,45 +486,89 @@ function TaskEditor({
       setSaving(false);
     }
   }
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm sm:items-center sm:justify-center">
       <form
         onSubmit={save}
         className="w-full border-t border-border bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-lg sm:border"
       >
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-serif text-2xl">{task ? "Изменить задачу" : "Новая задача"}</h3>
+          <h3 className="font-serif text-2xl">
+            {task ? (seriesEdit ? "Изменить рутину" : "Изменить задачу") : "Новые дела"}
+          </h3>
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
             <X />
           </Button>
         </div>
         <div className="space-y-3">
-          <input
-            autoFocus
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название"
-            className="h-12 w-full rounded-md border border-input bg-card px-3 text-base outline-none focus:border-foreground"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <label className="space-y-1 text-xs text-muted-foreground">
-              Дата
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+          {!task && (
+            <div className="grid grid-cols-2 rounded-full border border-border p-1 text-sm">
+              {(
+                [
+                  ["one", "Одно дело"],
+                  ["list", "Списком"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  type="button"
+                  key={id}
+                  onClick={() => setMode(id)}
+                  className={`h-9 rounded-full ${mode === id ? "bg-foreground text-background" : "text-muted-foreground"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {mode === "list" ? (
+            <div>
+              <textarea
+                autoFocus
+                value={listText}
+                onChange={(e) => setListText(e.target.value)}
+                rows={6}
+                placeholder={"06:00 Подъём\n06:05 Стакан воды\n06:10 Душ\nКупить тетрадь"}
+                className="w-full rounded-md border border-input bg-card px-3 py-2 text-base outline-none focus:border-foreground"
               />
-            </label>
-            <label className="space-y-1 text-xs text-muted-foreground">
-              Время
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
-              />
-            </label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                По строке на дело, время в начале — по желанию.
+                {listItems.length > 0 && ` Дел: ${listItems.length}.`}
+              </p>
+            </div>
+          ) : (
+            <input
+              autoFocus
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Название"
+              className="h-12 w-full rounded-md border border-input bg-card px-3 text-base outline-none focus:border-foreground"
+            />
+          )}
+          <div
+            className={`grid gap-3 ${mode === "list" || seriesEdit ? "grid-cols-1" : "grid-cols-2"}`}
+          >
+            {!seriesEdit && (
+              <label className="space-y-1 text-xs text-muted-foreground">
+                {repeat === "none" ? "Дата" : "Начиная с"}
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+                />
+              </label>
+            )}
+            {mode === "one" && (
+              <label className="space-y-1 text-xs text-muted-foreground">
+                Время
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+                />
+              </label>
+            )}
           </div>
           {!task && (
             <>
@@ -532,14 +588,16 @@ function TaskEditor({
             </>
           )}
         </div>
-        <Button
-          className="mt-5 h-12 w-full rounded-full"
-          disabled={saving || !title.trim() || (repeat === "custom" && !days.length)}
-        >
-          {saving ? "Сохраняю…" : "Сохранить"}
+        <Button className="mt-5 h-12 w-full rounded-full" disabled={saving || !canSave}>
+          {saving
+            ? "Сохраняю…"
+            : mode === "list" && listItems.length > 1
+              ? `Добавить ${listItems.length}`
+              : "Сохранить"}
         </Button>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -554,7 +612,7 @@ function ScopeDialog({
   onToday: () => void;
   onFuture: () => void;
 }) {
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end bg-background/70 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-5">
         <h3 className="font-serif text-2xl">
@@ -575,7 +633,8 @@ function ScopeDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -803,7 +862,7 @@ function RoutineEditor({
       setSaving(false);
     }
   }
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm sm:items-center sm:justify-center">
       <form
         onSubmit={save}
@@ -841,6 +900,7 @@ function RoutineEditor({
           {saving ? "Сохраняю…" : "Сохранить"}
         </Button>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
