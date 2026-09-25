@@ -30,6 +30,7 @@ import {
   loadRoutines,
   loadTasks,
   localIso,
+  PLANNER_CHANGED,
   removeTask,
   setRoutineActive,
   updateRoutineFuture,
@@ -91,6 +92,9 @@ export function PlansSection() {
 
   useEffect(() => {
     void refresh();
+    const onChange = () => void refresh();
+    window.addEventListener(PLANNER_CHANGED, onChange);
+    return () => window.removeEventListener(PLANNER_CHANGED, onChange);
   }, [range.from, range.to]);
 
   async function toggle(task: PlannerTask) {
@@ -200,16 +204,14 @@ export function PlansSection() {
           </strong>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-secondary">
-          <motion.div
-            className="h-full rounded-full bg-foreground"
-            initial={false}
-            animate={{ width: `${percent}%` }}
-            transition={{ type: "spring", damping: 26, stiffness: 180 }}
+          <div
+            className="h-full origin-left rounded-full bg-foreground transition-transform duration-500 ease-out"
+            style={{ transform: `scaleX(${percent / 100})` }}
           />
         </div>
       </div>
 
-      {loading ? (
+      {loading && !tasks.length ? (
         <div className="py-16 text-center text-sm text-muted-foreground">Загрузка…</div>
       ) : (
         <TaskList
@@ -316,72 +318,62 @@ function TaskGroup({
 }) {
   return (
     <ul className="overflow-hidden rounded-2xl bg-card">
-      <AnimatePresence initial={false}>
-        {tasks.map((task) => (
-          <motion.li
-            key={task.id}
-            layout
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ type: "spring", damping: 30, stiffness: 320 }}
-            className="border-b border-border last:border-b-0"
-          >
-            <div className="flex min-h-14 items-center gap-3 py-2 pl-4 pr-1">
-              <motion.button
-                onClick={() => onToggle(task)}
-                whileTap={{ scale: 0.8 }}
-                aria-label={task.completed ? "Вернуть задачу" : "Выполнить задачу"}
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${task.completed ? "border-foreground bg-foreground text-background" : "border-muted-foreground/60"}`}
-              >
-                <AnimatePresence initial={false}>
-                  {task.completed && (
-                    <motion.span
-                      initial={{ scale: 0, rotate: -30 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      exit={{ scale: 0 }}
-                      transition={{ type: "spring", damping: 14, stiffness: 420 }}
-                    >
-                      <Check className="h-4 w-4" strokeWidth={3} />
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-              <button
-                type="button"
-                onClick={() => onEdit(task)}
-                aria-label={`Изменить «${task.title}»`}
-                className="flex min-w-0 flex-1 items-center gap-3 text-left"
-              >
-                <span className="w-11 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
-                  {task.scheduled_time?.slice(0, 5) ?? "—"}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span
-                    className={`block break-words text-[15px] transition-colors duration-300 ${task.completed ? "text-muted-foreground line-through decoration-muted-foreground/60" : ""}`}
+      {tasks.map((task) => (
+        <li key={task.id} className="border-b border-border last:border-b-0">
+          <div className="flex min-h-14 items-center gap-3 py-2 pl-4 pr-1">
+            <motion.button
+              onClick={() => onToggle(task)}
+              whileTap={{ scale: 0.8 }}
+              aria-label={task.completed ? "Вернуть задачу" : "Выполнить задачу"}
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${task.completed ? "border-foreground bg-foreground text-background" : "border-muted-foreground/60"}`}
+            >
+              <AnimatePresence initial={false}>
+                {task.completed && (
+                  <motion.span
+                    initial={{ scale: 0, rotate: -30 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    exit={{ scale: 0 }}
+                    transition={{ type: "spring", damping: 14, stiffness: 420 }}
                   >
-                    {task.title}
-                  </span>
-                  {task.routine_id && (
-                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <Repeat className="h-3 w-3" /> Рутина
-                    </span>
-                  )}
+                    <Check className="h-4 w-4" strokeWidth={3} />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+            <button
+              type="button"
+              onClick={() => onEdit(task)}
+              aria-label={`Изменить «${task.title}»`}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            >
+              <span className="w-11 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                {task.scheduled_time?.slice(0, 5) ?? "—"}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span
+                  className={`block break-words text-[15px] transition-colors duration-300 ${task.completed ? "text-muted-foreground line-through decoration-muted-foreground/60" : ""}`}
+                >
+                  {task.title}
                 </span>
-              </button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground/70"
-                onClick={() => onDelete(task)}
-                aria-label="Удалить"
-              >
-                <Trash2 />
-              </Button>
-            </div>
-          </motion.li>
-        ))}
-      </AnimatePresence>
+                {task.routine_id && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <Repeat className="h-3 w-3" /> Рутина
+                  </span>
+                )}
+              </span>
+            </button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground/70"
+              onClick={() => onDelete(task)}
+              aria-label="Удалить"
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        </li>
+      ))}
     </ul>
   );
 }
@@ -700,6 +692,9 @@ export function RoutinesSection() {
   }
   useEffect(() => {
     void refresh();
+    const onChange = () => void refresh();
+    window.addEventListener(PLANNER_CHANGED, onChange);
+    return () => window.removeEventListener(PLANNER_CHANGED, onChange);
   }, []);
   const closeEditor = () => {
     setCreating(false);
@@ -749,7 +744,7 @@ export function RoutinesSection() {
           <Plus />
         </Button>
       </div>
-      {loading ? (
+      {loading && !routines.length ? (
         <div className="py-16 text-center text-sm text-muted-foreground">Загрузка…</div>
       ) : routines.length === 0 ? (
         <div className="rounded-2xl bg-card py-12 text-center text-sm text-muted-foreground">

@@ -45,11 +45,11 @@ export function AppSheet({
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
           <motion.div
-            className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-black/60"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.2 }}
             onClick={onClose}
           />
           <motion.div
@@ -61,7 +61,7 @@ export function AppSheet({
             )}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            exit={{ y: "100%", transition: { duration: 0.22, ease: [0.4, 0, 1, 1] } }}
             transition={SPRING}
             drag="y"
             dragListener={false}
