@@ -125,7 +125,11 @@ async function tick() {
     // просрочено больше чем на час — напомним ещё раз
     if (nowMin > start + 60 && !alreadyFired("late-" + p.id)) {
       markFired("late-" + p.id);
-      await notify("lumen-late-" + p.id, "Lumen · ещё не сделано", `${p.title} — было на ${p.time}`);
+      await notify(
+        "lumen-late-" + p.id,
+        "Lumen · ещё не сделано",
+        `${p.title} — было на ${p.time}`,
+      );
     }
   }
 
@@ -133,13 +137,12 @@ async function tick() {
   const hour = now.getHours();
   if (SUMMARY_HOURS.includes(hour) && !alreadyFired("summary-" + hour)) {
     markFired("summary-" + hour);
-    const titles = pending.slice(0, 3).map((p) => p.title).join(", ");
+    const titles = pending
+      .slice(0, 3)
+      .map((p) => p.title)
+      .join(", ");
     const more = pending.length > 3 ? ` и ещё ${pending.length - 3}` : "";
-    await notify(
-      "lumen-summary",
-      `Lumen · осталось ${pending.length}`,
-      `${titles}${more}`
-    );
+    await notify("lumen-summary", `Lumen · осталось ${pending.length}`, `${titles}${more}`);
   }
 }
 
@@ -148,7 +151,9 @@ export async function scheduleRoutineReminders() {
   if (typeof window === "undefined") return;
   await getRegistration();
   if (timer) clearInterval(timer);
-  timer = setInterval(() => { void tick(); }, CHECK_MS);
+  timer = setInterval(() => {
+    void tick();
+  }, CHECK_MS);
   await tick();
 }
 
@@ -164,7 +169,10 @@ export async function remindNow() {
     await notify("lumen-done", "Lumen", "Всё сделано на сегодня 🎉");
     return 0;
   }
-  const titles = pending.slice(0, 5).map((p) => "• " + p.title).join("\n");
+  const titles = pending
+    .slice(0, 5)
+    .map((p) => "• " + p.title)
+    .join("\n");
   await notify("lumen-now", `Осталось ${pending.length}`, titles);
   return pending.length;
 }

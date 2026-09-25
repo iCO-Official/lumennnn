@@ -17,21 +17,51 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Lumen — твой ежедневник и AI-аналитик дня" },
-      { name: "description", content: "Минималистичный планировщик задач, сна и здоровья с AI-выводами." },
+      {
+        name: "description",
+        content: "Минималистичный планировщик задач, сна и здоровья с AI-выводами.",
+      },
       { property: "og:title", content: "Lumen — ежедневник нового поколения" },
-      { property: "og:description", content: "Планируй день, неделю и месяц. AI расскажет, что улучшить." },
+      {
+        property: "og:description",
+        content: "Планируй день, неделю и месяц. AI расскажет, что улучшить.",
+      },
     ],
   }),
   component: Landing,
 });
 
 const features = [
-  { icon: Calendar, title: "Планировщик 3 в 1", text: "День, неделя, месяц — одно касание, чтобы переключиться. Задачи перетекают между уровнями." },
-  { icon: Dumbbell, title: "Тренировки", text: "Расписание тренировок, прогресс по нагрузке и подходам. Без лишних полей." },
-  { icon: Moon, title: "Сон", text: "Отмечай время отхода и подъёма. Lumen строит линию качества сна за месяц." },
-  { icon: Activity, title: "Здоровье", text: "Настроение, энергия, вода, шаги. Никакой перегруженной медицинской панели." },
-  { icon: NotebookPen, title: "Дневник мыслей", text: "Запиши, что было в голове сегодня. Lumen хранит это приватно — только ты и AI." },
-  { icon: Sparkles, title: "AI-инсайты", text: "Lumen читает твои данные и говорит, что мешает и что работает. Конкретно, без воды." },
+  {
+    icon: Calendar,
+    title: "Планировщик 3 в 1",
+    text: "День, неделя, месяц — одно касание, чтобы переключиться. Задачи перетекают между уровнями.",
+  },
+  {
+    icon: Dumbbell,
+    title: "Тренировки",
+    text: "Расписание тренировок, прогресс по нагрузке и подходам. Без лишних полей.",
+  },
+  {
+    icon: Moon,
+    title: "Сон",
+    text: "Отмечай время отхода и подъёма. Lumen строит линию качества сна за месяц.",
+  },
+  {
+    icon: Activity,
+    title: "Здоровье",
+    text: "Настроение, энергия, вода, шаги. Никакой перегруженной медицинской панели.",
+  },
+  {
+    icon: NotebookPen,
+    title: "Дневник мыслей",
+    text: "Запиши, что было в голове сегодня. Lumen хранит это приватно — только ты и AI.",
+  },
+  {
+    icon: Sparkles,
+    title: "AI-инсайты",
+    text: "Lumen читает твои данные и говорит, что мешает и что работает. Конкретно, без воды.",
+  },
 ];
 
 function Landing() {
@@ -81,8 +111,8 @@ function Landing() {
             <span className="italic text-muted-foreground">чтобы вести день.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-balance text-base text-muted-foreground sm:text-lg">
-            Lumen — это ежедневник, тренер и аналитик. Планируй день, неделю и месяц.
-            Следи за сном и здоровьем. AI расскажет, что улучшить — без воды.
+            Lumen — это ежедневник, тренер и аналитик. Планируй день, неделю и месяц. Следи за сном
+            и здоровьем. AI расскажет, что улучшить — без воды.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
@@ -118,12 +148,17 @@ function Landing() {
             </div>
             <div className="grid gap-4 p-6 sm:grid-cols-3">
               {[
-                { label: "Сегодня", items: ["Тренировка 18:00", "Звонок с командой", "Прочитать главу"] },
+                {
+                  label: "Сегодня",
+                  items: ["Тренировка 18:00", "Звонок с командой", "Прочитать главу"],
+                },
                 { label: "Неделя", items: ["3 тренировки", "Закрыть проект", "Семейный ужин"] },
                 { label: "Месяц", items: ["7ч сна в среднем", "12 пробежек", "Дневник 30/30"] },
               ].map((col) => (
                 <div key={col.label}>
-                  <div className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">{col.label}</div>
+                  <div className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">
+                    {col.label}
+                  </div>
                   <ul className="space-y-2">
                     {col.items.map((t) => (
                       <li key={t} className="flex items-center gap-2 text-sm">
@@ -146,8 +181,12 @@ function Landing() {
       {/* Features */}
       <section id="features" className="relative z-10 mx-auto max-w-6xl px-5 pb-24 sm:px-8">
         <div className="mb-10 max-w-2xl">
-          <h2 className="font-serif text-3xl tracking-tight sm:text-4xl">Всё, что нужно. Ничего лишнего.</h2>
-          <p className="mt-3 text-muted-foreground">Шесть инструментов в одном спокойном интерфейсе.</p>
+          <h2 className="font-serif text-3xl tracking-tight sm:text-4xl">
+            Всё, что нужно. Ничего лишнего.
+          </h2>
+          <p className="mt-3 text-muted-foreground">
+            Шесть инструментов в одном спокойном интерфейсе.
+          </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f, i) => (
@@ -175,7 +214,10 @@ function Landing() {
               <Smartphone className="h-3.5 w-3.5" /> Работает как приложение
             </div>
             <h3 className="font-serif text-3xl tracking-tight">Добавь Lumen на iPhone</h3>
-            <p className="mt-3 text-muted-foreground">Открой в Safari → «Поделиться» → «На экран Домой». Lumen откроется как нативное приложение, без браузера.</p>
+            <p className="mt-3 text-muted-foreground">
+              Открой в Safari → «Поделиться» → «На экран Домой». Lumen откроется как нативное
+              приложение, без браузера.
+            </p>
           </div>
           <LumenMark size={64} className="opacity-80" />
         </div>

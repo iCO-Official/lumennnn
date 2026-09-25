@@ -102,7 +102,9 @@ export async function loadTasks(from: string, to = from) {
   await ensureRoutineInstances(from, to);
   const { data, error } = await supabase
     .from("tasks")
-    .select("id,title,notes,scheduled_for,scheduled_time,completed,completed_at,routine_id,sort_order,scope")
+    .select(
+      "id,title,notes,scheduled_for,scheduled_time,completed,completed_at,routine_id,sort_order,scope",
+    )
     .gte("scheduled_for", from)
     .lte("scheduled_for", to)
     .order("scheduled_for")
@@ -118,27 +120,37 @@ export async function createTask(draft: TaskDraft) {
   if (!user) throw new Error("Войди в аккаунт");
 
   if (draft.repeatDays.length) {
-    const { data, error } = await supabase.from("routines").insert({
-      user_id: user.id,
-      title: draft.title,
-      time_of_day: draft.time,
-      weekdays: draft.repeatDays,
-      starts_on: draft.date,
-      day_of_week: draft.repeatDays.length === 1 ? draft.repeatDays[0] : null,
-      sort_order: 999,
-    }).select("id,title,time_of_day,weekdays,starts_on,ends_on,sort_order,active").single();
+    const { data, error } = await supabase
+      .from("routines")
+      .insert({
+        user_id: user.id,
+        title: draft.title,
+        time_of_day: draft.time,
+        weekdays: draft.repeatDays,
+        starts_on: draft.date,
+        day_of_week: draft.repeatDays.length === 1 ? draft.repeatDays[0] : null,
+        sort_order: 999,
+      })
+      .select("id,title,time_of_day,weekdays,starts_on,ends_on,sort_order,active")
+      .single();
     if (error) throw error;
     await ensureRoutineInstances(draft.date, draft.date);
     return { kind: "routine" as const, data };
   }
 
-  const { data, error } = await supabase.from("tasks").insert({
-    user_id: user.id,
-    title: draft.title,
-    scheduled_for: draft.date,
-    scheduled_time: draft.time,
-    scope: "day",
-  }).select("id,title,notes,scheduled_for,scheduled_time,completed,completed_at,routine_id,sort_order,scope").single();
+  const { data, error } = await supabase
+    .from("tasks")
+    .insert({
+      user_id: user.id,
+      title: draft.title,
+      scheduled_for: draft.date,
+      scheduled_time: draft.time,
+      scope: "day",
+    })
+    .select(
+      "id,title,notes,scheduled_for,scheduled_time,completed,completed_at,routine_id,sort_order,scope",
+    )
+    .single();
   if (error) throw error;
   return { kind: "task" as const, data };
 }
@@ -153,12 +165,21 @@ export async function loadRoutines() {
   return (data ?? []) as PlannerRoutine[];
 }
 
-export async function updateTaskInstance(id: string, values: Partial<Pick<PlannerTask, "title" | "scheduled_for" | "scheduled_time" | "sort_order">>) {
+export async function updateTaskInstance(
+  id: string,
+  values: Partial<Pick<PlannerTask, "title" | "scheduled_for" | "scheduled_time" | "sort_order">>,
+) {
   const { error } = await supabase.from("tasks").update(values).eq("id", id);
   if (error) throw error;
 }
 
-export async function updateRoutineFuture(routineId: string, fromDate: string, values: Partial<Pick<PlannerRoutine, "title" | "time_of_day" | "weekdays" | "active" | "sort_order">>) {
+export async function updateRoutineFuture(
+  routineId: string,
+  fromDate: string,
+  values: Partial<
+    Pick<PlannerRoutine, "title" | "time_of_day" | "weekdays" | "active" | "sort_order">
+  >,
+) {
   const { error } = await supabase.from("routines").update(values).eq("id", routineId);
   if (error) throw error;
   const update: Partial<Pick<PlannerTask, "title" | "scheduled_time" | "sort_order">> = {};
@@ -166,7 +187,11 @@ export async function updateRoutineFuture(routineId: string, fromDate: string, v
   if (values.time_of_day !== undefined) update.scheduled_time = values.time_of_day;
   if (values.sort_order !== undefined) update.sort_order = values.sort_order;
   if (Object.keys(update).length) {
-    const { error: taskError } = await supabase.from("tasks").update(update).eq("routine_id", routineId).gte("scheduled_for", fromDate);
+    const { error: taskError } = await supabase
+      .from("tasks")
+      .update(update)
+      .eq("routine_id", routineId)
+      .gte("scheduled_for", fromDate);
     if (taskError) throw taskError;
   }
 }
@@ -174,9 +199,16 @@ export async function updateRoutineFuture(routineId: string, fromDate: string, v
 export async function removeTask(task: PlannerTask, allFuture: boolean) {
   if (allFuture && task.routine_id) {
     const yesterday = addDays(task.scheduled_for, -1);
-    const { error: routineError } = await supabase.from("routines").update({ ends_on: yesterday, active: false }).eq("id", task.routine_id);
+    const { error: routineError } = await supabase
+      .from("routines")
+      .update({ ends_on: yesterday, active: false })
+      .eq("id", task.routine_id);
     if (routineError) throw routineError;
-    const { error: futureError } = await supabase.from("tasks").delete().eq("routine_id", task.routine_id).gte("scheduled_for", task.scheduled_for);
+    const { error: futureError } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("routine_id", task.routine_id)
+      .gte("scheduled_for", task.scheduled_for);
     if (futureError) throw futureError;
     return;
   }

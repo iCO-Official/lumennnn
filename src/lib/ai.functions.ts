@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 // Google Gemini by default, via its OpenAI-compatible endpoint. Any other
 // OpenAI-compatible API works too: set AI_API_URL / AI_MODEL.
@@ -25,7 +27,9 @@ function aiConfig() {
   throw new Error("AI_API_KEY не задан");
 }
 
-type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
 type Msg = {
   role: "system" | "user" | "assistant" | "tool";
   content: string | ContentPart[] | null;
@@ -37,7 +41,15 @@ type GwChoice = { message: { content: string | null; tool_calls?: ToolCall[] } }
 
 export type AiProposal =
   | { kind: "create_task"; title: string; date: string; time: string | null; repeatDays?: number[] }
-  | { kind: "update_task"; taskId: string; routineId?: string | null; fromDate: string; title: string; date: string; time: string | null }
+  | {
+      kind: "update_task";
+      taskId: string;
+      routineId?: string | null;
+      fromDate: string;
+      title: string;
+      date: string;
+      time: string | null;
+    }
   | { kind: "schedule"; date: string; items: { title: string; time: string | null }[] };
 
 async function rawGateway(messages: Msg[], tools?: unknown[]): Promise<GwChoice["message"]> {
@@ -61,7 +73,10 @@ export const CHAT_IMAGES_BUCKET = "chat-images";
 
 // The server runs in UTC and doesn't know the user's timezone, so the client
 // sends its local date (YYYY-MM-DD). Falls back to the server date.
-const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish();
+const localDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .nullish();
 
 function dayInfo(today?: string | null) {
   const iso = today ?? new Date().toISOString().slice(0, 10);
@@ -75,7 +90,8 @@ function dayInfo(today?: string | null) {
 
 function toBase64(bytes: Uint8Array) {
   let binary = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
 }
 
@@ -98,7 +114,6 @@ async function callGateway(messages: Msg[]): Promise<string> {
   return m.content ?? "";
 }
 
-
 function friendSystemPrompt(
   name: string | null,
   age: number | null,
@@ -111,7 +126,10 @@ function friendSystemPrompt(
   if (age) ctx.push(`Возраст: ${age}`);
   if (gender) ctx.push(`Пол: ${gender}`);
   if (interests?.length) ctx.push(`Интересы: ${interests.join(", ")}`);
-  if (extras.metrics?.length) ctx.push(`Личные метрики: ${extras.metrics.map((m) => m.name + (m.unit ? ` (${m.unit})` : "")).join(", ")}`);
+  if (extras.metrics?.length)
+    ctx.push(
+      `Личные метрики: ${extras.metrics.map((m) => m.name + (m.unit ? ` (${m.unit})` : "")).join(", ")}`,
+    );
   if (extras.gaming) ctx.push(`Игровая статистика: ${JSON.stringify(extras.gaming)}`);
 
   return `Ты — Lumen, личный AI-друг, который помогает пользователю в его дневнике. Общайся как близкий друг: тепло, на «ты», без формальностей, без канцелярита, без "Как я могу помочь?".
@@ -132,7 +150,11 @@ export const chatWithAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
-      .object({ message: z.string().max(4000), imagePath: z.string().max(300).nullish(), today: localDate })
+      .object({
+        message: z.string().max(4000),
+        imagePath: z.string().max(300).nullish(),
+        today: localDate,
+      })
       .refine((v) => v.message.trim() || v.imagePath, "Пустое сообщение")
       .parse(d),
   )
@@ -144,17 +166,22 @@ export const chatWithAi = createServerFn({ method: "POST" })
     }
     const text = data.message.trim() || "Посмотри на фото.";
 
-    const [{ data: profile }, { data: history }, { data: gaming }, { data: metrics }] = await Promise.all([
-      supabase.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
-      supabase
-        .from("ai_messages")
-        .select("role, content")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(40),
-      supabase.from("gaming_stats").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("custom_metrics").select("name, unit").eq("user_id", userId),
-    ]);
+    const [{ data: profile }, { data: history }, { data: gaming }, { data: metrics }] =
+      await Promise.all([
+        supabase
+          .from("profiles")
+          .select("display_name, age, gender, interests")
+          .eq("id", userId)
+          .maybeSingle(),
+        supabase
+          .from("ai_messages")
+          .select("role, content")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(40),
+        supabase.from("gaming_stats").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("custom_metrics").select("name, unit").eq("user_id", userId),
+      ]);
 
     const system = friendSystemPrompt(
       profile?.display_name ?? null,
@@ -165,9 +192,14 @@ export const chatWithAi = createServerFn({ method: "POST" })
     );
 
     const messages: Msg[] = [
-      { role: "system", content: system + `\n\nСегодня ${dayInfo(data.today).iso}.\n` + ROUTINE_TOOLS_HINT },
+      {
+        role: "system",
+        content: system + `\n\nСегодня ${dayInfo(data.today).iso}.\n` + ROUTINE_TOOLS_HINT,
+      },
       // Photo-only messages are stored with empty text; old photos are not re-sent to the model.
-      ...(history ?? []).reverse().map((m) => ({ role: m.role, content: m.content || "[фото]" }) as Msg),
+      ...(history ?? [])
+        .reverse()
+        .map((m) => ({ role: m.role, content: m.content || "[фото]" }) as Msg),
       {
         role: "user",
         content: imagePath
@@ -188,7 +220,12 @@ export const chatWithAi = createServerFn({ method: "POST" })
         for (const call of m.tool_calls) {
           let result: unknown;
           try {
-            const toolResult = await runRoutineTool(supabase, userId, call.function.name, JSON.parse(call.function.arguments || "{}"));
+            const toolResult = await runRoutineTool(
+              supabase,
+              userId,
+              call.function.name,
+              JSON.parse(call.function.arguments || "{}"),
+            );
             result = toolResult.result;
             if (toolResult.proposal) proposal = toolResult.proposal;
           } catch (e) {
@@ -204,7 +241,12 @@ export const chatWithAi = createServerFn({ method: "POST" })
     if (!reply) reply = "Готово.";
 
     await supabase.from("ai_messages").insert([
-      { user_id: userId, role: "user", content: data.message.trim(), ...(imagePath ? { image_path: imagePath } : {}) },
+      {
+        user_id: userId,
+        role: "user",
+        content: data.message.trim(),
+        ...(imagePath ? { image_path: imagePath } : {}),
+      },
       { user_id: userId, role: "assistant", content: reply },
     ]);
 
@@ -224,7 +266,10 @@ const ROUTINE_TOOLS = [
       description: "Найти задачи и экземпляры рутин пользователя по дате или названию",
       parameters: {
         type: "object",
-        properties: { date: { type: "string", description: "YYYY-MM-DD или пусто" }, query: { type: "string", description: "часть названия или пусто" } },
+        properties: {
+          date: { type: "string", description: "YYYY-MM-DD или пусто" },
+          query: { type: "string", description: "часть названия или пусто" },
+        },
         required: ["date", "query"],
       },
     },
@@ -242,9 +287,12 @@ const ROUTINE_TOOLS = [
             type: "array",
             items: {
               type: "object",
-              properties: { title: { type: "string" }, time: { type: "string", description: "HH:MM или пусто" } },
+              properties: {
+                title: { type: "string" },
+                time: { type: "string", description: "HH:MM или пусто" },
+              },
               required: ["title", "time"],
-                  },
+            },
           },
         },
         required: ["date", "items"],
@@ -262,7 +310,11 @@ const ROUTINE_TOOLS = [
           title: { type: "string" },
           date: { type: "string" },
           time: { type: "string", description: "HH:MM или пусто" },
-          repeat_days: { type: "array", items: { type: "integer" }, description: "0=Вс…6=Сб; пусто для одноразовой задачи" },
+          repeat_days: {
+            type: "array",
+            items: { type: "integer" },
+            description: "0=Вс…6=Сб; пусто для одноразовой задачи",
+          },
         },
         required: ["title", "date", "time", "repeat_days"],
       },
@@ -289,13 +341,21 @@ const ROUTINE_TOOLS = [
   },
 ];
 
-type SB = { from: (t: string) => any };
+type ToolArgs = Record<string, unknown>;
 
-async function runRoutineTool(supabase: SB, userId: string, name: string, args: any) {
+async function runRoutineTool(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  name: string,
+  args: ToolArgs,
+) {
   const time = (t: unknown) => (typeof t === "string" && /^\d{1,2}:\d{2}$/.test(t) ? t : null);
 
   if (name === "list_tasks") {
-    let query = supabase.from("tasks").select("id,title,scheduled_for,scheduled_time,routine_id").eq("user_id", userId);
+    let query = supabase
+      .from("tasks")
+      .select("id,title,scheduled_for,scheduled_time,routine_id")
+      .eq("user_id", userId);
     if (args?.date) query = query.eq("scheduled_for", String(args.date));
     if (args?.query) query = query.ilike("title", `%${String(args.query).slice(0, 100)}%`);
     const { data } = await query.order("scheduled_for", { ascending: true }).limit(30);
@@ -303,17 +363,41 @@ async function runRoutineTool(supabase: SB, userId: string, name: string, args: 
   }
 
   if (name === "propose_schedule") {
-    const proposal: AiProposal = { kind: "schedule", date: String(args.date), items: (args.items ?? []).slice(0, 30).map((item: any) => ({ title: String(item.title).slice(0, 200), time: time(item.time) })) };
+    const proposal: AiProposal = {
+      kind: "schedule",
+      date: String(args.date),
+      items: (Array.isArray(args.items) ? (args.items as ToolArgs[]) : [])
+        .slice(0, 30)
+        .map((item) => ({ title: String(item.title).slice(0, 200), time: time(item.time) })),
+    };
     return { result: { proposed: true, count: proposal.items.length }, proposal };
   }
 
   if (name === "propose_create_task") {
-    const proposal: AiProposal = { kind: "create_task", title: String(args.title).slice(0, 200), date: String(args.date), time: time(args.time), repeatDays: Array.isArray(args.repeat_days) ? args.repeat_days.filter((day: unknown) => Number.isInteger(day) && Number(day) >= 0 && Number(day) <= 6) : [] };
+    const proposal: AiProposal = {
+      kind: "create_task",
+      title: String(args.title).slice(0, 200),
+      date: String(args.date),
+      time: time(args.time),
+      repeatDays: Array.isArray(args.repeat_days)
+        ? args.repeat_days.filter(
+            (day: unknown) => Number.isInteger(day) && Number(day) >= 0 && Number(day) <= 6,
+          )
+        : [],
+    };
     return { result: { proposed: true }, proposal };
   }
 
   if (name === "propose_update_task") {
-    const proposal: AiProposal = { kind: "update_task", taskId: String(args.task_id), routineId: args.routine_id ? String(args.routine_id) : null, title: String(args.title).slice(0, 200), date: String(args.date), fromDate: String(args.from_date), time: time(args.time) };
+    const proposal: AiProposal = {
+      kind: "update_task",
+      taskId: String(args.task_id),
+      routineId: args.routine_id ? String(args.routine_id) : null,
+      title: String(args.title).slice(0, 200),
+      date: String(args.date),
+      fromDate: String(args.from_date),
+      time: time(args.time),
+    };
     return { result: { proposed: true }, proposal };
   }
 
@@ -331,11 +415,31 @@ export const dailyBrief = createServerFn({ method: "POST" })
     const since = day.minusDays(7);
 
     const [profile, routines, tasks, sleep, journal] = await Promise.all([
-      supabase.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
-      supabase.from("routines").select("title, time_of_day, day_of_week").eq("user_id", userId).or(`day_of_week.eq.${dow},day_of_week.is.null`),
-      supabase.from("tasks").select("title, completed, scheduled_for").eq("user_id", userId).gte("scheduled_for", since),
-      supabase.from("sleep_logs").select("log_date, hours, quality").eq("user_id", userId).gte("log_date", since),
-      supabase.from("journal_entries").select("entry_date, mood, content").eq("user_id", userId).gte("entry_date", since),
+      supabase
+        .from("profiles")
+        .select("display_name, age, gender, interests")
+        .eq("id", userId)
+        .maybeSingle(),
+      supabase
+        .from("routines")
+        .select("title, time_of_day, day_of_week")
+        .eq("user_id", userId)
+        .or(`day_of_week.eq.${dow},day_of_week.is.null`),
+      supabase
+        .from("tasks")
+        .select("title, completed, scheduled_for")
+        .eq("user_id", userId)
+        .gte("scheduled_for", since),
+      supabase
+        .from("sleep_logs")
+        .select("log_date, hours, quality")
+        .eq("user_id", userId)
+        .gte("log_date", since),
+      supabase
+        .from("journal_entries")
+        .select("entry_date, mood, content")
+        .eq("user_id", userId)
+        .gte("entry_date", since),
     ]);
 
     const system = friendSystemPrompt(
@@ -359,7 +463,13 @@ ${JSON.stringify({ routines: routines.data ?? [], tasks: tasks.data ?? [], sleep
     ]);
 
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return { emoji: "🙂", mood: "спокойно", message: "Я тут. Расскажи, как ты?", tips: [] as string[] };
+    if (!match)
+      return {
+        emoji: "🙂",
+        mood: "спокойно",
+        message: "Я тут. Расскажи, как ты?",
+        tips: [] as string[],
+      };
     try {
       const p = JSON.parse(match[0]);
       return {
@@ -369,18 +479,28 @@ ${JSON.stringify({ routines: routines.data ?? [], tasks: tasks.data ?? [], sleep
         tips: Array.isArray(p.tips) ? p.tips.map(String).slice(0, 4) : [],
       };
     } catch {
-      return { emoji: "🙂", mood: "спокойно", message: "Я тут. Расскажи, как ты?", tips: [] as string[] };
+      return {
+        emoji: "🙂",
+        mood: "спокойно",
+        message: "Я тут. Расскажи, как ты?",
+        tips: [] as string[],
+      };
     }
   });
-
 
 export const resetAiChat = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     // image_path may not exist yet if the chat-images migration isn't applied; then there is nothing to remove.
-    const { data: withImages } = await supabase.from("ai_messages").select("image_path").eq("user_id", userId).not("image_path", "is", null);
-    const paths = (withImages ?? []).map((row) => row.image_path).filter((path): path is string => !!path);
+    const { data: withImages } = await supabase
+      .from("ai_messages")
+      .select("image_path")
+      .eq("user_id", userId)
+      .not("image_path", "is", null);
+    const paths = (withImages ?? [])
+      .map((row) => row.image_path)
+      .filter((path): path is string => !!path);
     if (paths.length) await supabase.storage.from(CHAT_IMAGES_BUCKET).remove(paths);
     await supabase.from("ai_messages").delete().eq("user_id", userId);
     return { ok: true };
@@ -393,17 +513,46 @@ export const analyzeWeek = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const sinceIso = dayInfo(data.today).minusDays(7);
 
-    const [tasks, sleep, workouts, health, journal, profile, gaming, metrics, metricLogs] = await Promise.all([
-      supabase.from("tasks").select("title, scope, completed, scheduled_for").eq("user_id", userId).gte("scheduled_for", sinceIso),
-      supabase.from("sleep_logs").select("log_date, hours, quality").eq("user_id", userId).gte("log_date", sinceIso),
-      supabase.from("workouts").select("title, kind, duration_min, intensity, workout_date").eq("user_id", userId).gte("workout_date", sinceIso),
-      supabase.from("health_logs").select("log_date, mood, energy, water_ml, steps, weight_kg").eq("user_id", userId).gte("log_date", sinceIso),
-      supabase.from("journal_entries").select("entry_date, mood, content").eq("user_id", userId).gte("entry_date", sinceIso),
-      supabase.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
-      supabase.from("gaming_stats").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("custom_metrics").select("id, name, unit").eq("user_id", userId),
-      supabase.from("custom_metric_logs").select("metric_id, log_date, value_num, value_text").eq("user_id", userId).gte("log_date", sinceIso),
-    ]);
+    const [tasks, sleep, workouts, health, journal, profile, gaming, metrics, metricLogs] =
+      await Promise.all([
+        supabase
+          .from("tasks")
+          .select("title, scope, completed, scheduled_for")
+          .eq("user_id", userId)
+          .gte("scheduled_for", sinceIso),
+        supabase
+          .from("sleep_logs")
+          .select("log_date, hours, quality")
+          .eq("user_id", userId)
+          .gte("log_date", sinceIso),
+        supabase
+          .from("workouts")
+          .select("title, kind, duration_min, intensity, workout_date")
+          .eq("user_id", userId)
+          .gte("workout_date", sinceIso),
+        supabase
+          .from("health_logs")
+          .select("log_date, mood, energy, water_ml, steps, weight_kg")
+          .eq("user_id", userId)
+          .gte("log_date", sinceIso),
+        supabase
+          .from("journal_entries")
+          .select("entry_date, mood, content")
+          .eq("user_id", userId)
+          .gte("entry_date", sinceIso),
+        supabase
+          .from("profiles")
+          .select("display_name, age, gender, interests")
+          .eq("id", userId)
+          .maybeSingle(),
+        supabase.from("gaming_stats").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("custom_metrics").select("id, name, unit").eq("user_id", userId),
+        supabase
+          .from("custom_metric_logs")
+          .select("metric_id, log_date, value_num, value_text")
+          .eq("user_id", userId)
+          .gte("log_date", sinceIso),
+      ]);
 
     const metricsList = (metrics.data ?? []) as { id: string; name: string; unit: string | null }[];
     const metricById = new Map(metricsList.map((m) => [m.id, m]));
@@ -449,62 +598,4 @@ ${JSON.stringify(summary, null, 2)}
     ]);
 
     return { analysis: reply };
-  });
-
-export const generateSchedule = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({
-      prompt: z.string().min(1).max(4000),
-      dayOfWeek: z.number().int().min(0).max(6).nullable(),
-      replace: z.boolean().default(true),
-    }).parse(d),
-  )
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-
-    const system = `Ты — помощник, который преобразует описание распорядка дня в JSON.
-ОТВЕЧАЙ ТОЛЬКО валидным JSON-объектом, без markdown, без комментариев.
-Формат строго:
-{"items":[{"title":"строка до 80 символов","time":"HH:MM или null"}]}
-Если время не указано — поставь null. Сохраняй порядок дел.`;
-
-    const dayLabel = data.dayOfWeek === null
-      ? "каждый день"
-      : ["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"][data.dayOfWeek];
-
-    const reply = await callGateway([
-      { role: "system", content: system },
-      { role: "user", content: `Сделай расписание на ${dayLabel}. Описание пользователя:\n\n${data.prompt}` },
-    ]);
-
-    // extract JSON
-    const match = reply.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("AI не вернул расписание. Попробуй переформулировать.");
-    let parsed: { items: { title: string; time: string | null }[] };
-    try {
-      parsed = JSON.parse(match[0]);
-    } catch {
-      throw new Error("Не удалось разобрать ответ AI.");
-    }
-    const items = (parsed.items || []).filter((x) => x && typeof x.title === "string").slice(0, 50);
-    if (!items.length) throw new Error("Пустое расписание.");
-
-    if (data.replace) {
-      const del = supabase.from("routines").delete().eq("user_id", userId);
-      await (data.dayOfWeek === null ? del.is("day_of_week", null) : del.eq("day_of_week", data.dayOfWeek));
-    }
-
-
-    const rows = items.map((it, i) => ({
-      user_id: userId,
-      title: it.title.slice(0, 200),
-      day_of_week: data.dayOfWeek,
-      time_of_day: it.time && /^\d{1,2}:\d{2}$/.test(it.time) ? it.time : null,
-      sort_order: i,
-    }));
-    const { error } = await supabase.from("routines").insert(rows);
-    if (error) throw new Error(error.message);
-
-    return { count: rows.length };
   });
