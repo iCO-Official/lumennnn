@@ -46,6 +46,8 @@ npm run typecheck && npm run lint && npm run build
 - `AI_API_KEY` — ключ Google Gemini (бесплатно: https://aistudio.google.com/apikey).
   `AI_MODEL` (по умолчанию `gemini-flash-latest`) и `AI_API_URL` позволяют взять другую модель
   или любой OpenAI-совместимый API.
+  Если модель перегружена (503/429), запрос повторяется, затем уходит на запасную
+  (`AI_FALLBACK_MODELS`, по умолчанию `gemini-flash-lite-latest`).
 
 ## Вход через Google / Apple
 

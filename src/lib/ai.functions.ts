@@ -13,16 +13,29 @@ const LOVABLE_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_MODEL = "google/gemini-3-flash-preview";
 
 // Read inside a function: on edge runtimes env binds at request time.
+// Tried in order when the main model is overloaded (503) or rate-limited (429).
+// Override with AI_FALLBACK_MODELS="model-a,model-b" ("" disables).
+const DEFAULT_FALLBACK_MODELS = ["gemini-flash-lite-latest"];
+
 function aiConfig() {
   if (process.env.AI_API_KEY) {
+    const url = process.env.AI_API_URL || DEFAULT_API_URL;
+    const fallbacks =
+      process.env.AI_FALLBACK_MODELS !== undefined
+        ? process.env.AI_FALLBACK_MODELS.split(",")
+            .map((m) => m.trim())
+            .filter(Boolean)
+        : url === DEFAULT_API_URL
+          ? DEFAULT_FALLBACK_MODELS
+          : [];
     return {
-      url: process.env.AI_API_URL || DEFAULT_API_URL,
+      url,
       key: process.env.AI_API_KEY,
-      model: process.env.AI_MODEL || DEFAULT_MODEL,
+      models: [process.env.AI_MODEL || DEFAULT_MODEL, ...fallbacks],
     };
   }
   if (process.env.LOVABLE_API_KEY) {
-    return { url: LOVABLE_GATEWAY, key: process.env.LOVABLE_API_KEY, model: LOVABLE_MODEL };
+    return { url: LOVABLE_GATEWAY, key: process.env.LOVABLE_API_KEY, models: [LOVABLE_MODEL] };
   }
   throw new Error("AI_API_KEY не задан");
 }
@@ -54,21 +67,38 @@ export type AiProposal =
     }
   | { kind: "schedule"; date: string; items: { title: string; time: string | null }[] };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function rawGateway(messages: Msg[], tools?: unknown[]): Promise<GwChoice["message"]> {
-  const { url, key, model } = aiConfig();
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({ model, messages, ...(tools ? { tools } : {}) }),
-  });
-  if (res.status === 429) throw new Error("Слишком много запросов. Попробуй позже.");
-  if (res.status === 402) throw new Error("Закончились AI-кредиты.");
-  if (!res.ok) throw new Error(`AI API: ${res.status}`);
-  const data = await res.json();
-  return data?.choices?.[0]?.message ?? { content: "" };
+  const { url, key, models } = aiConfig();
+  let lastStatus = 0;
+  // Overloaded (503/500) or rate-limited (429): retry once, then try the next model.
+  for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({ model, messages, ...(tools ? { tools } : {}) }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data?.choices?.[0]?.message ?? { content: "" };
+      }
+      lastStatus = res.status;
+      if (res.status === 402) throw new Error("Закончились AI-кредиты.");
+      if (res.status === 401 || res.status === 403)
+        throw new Error("Ключ AI не подходит (AI_API_KEY).");
+      if (![429, 500, 503].includes(res.status)) break; // e.g. unknown fallback model: try the next one
+      if (attempt === 0) await sleep(1200);
+    }
+  }
+  if (lastStatus === 429) throw new Error("Слишком много запросов к AI. Попробуй через минуту.");
+  if (lastStatus === 503 || lastStatus === 500)
+    throw new Error("AI сейчас перегружен. Попробуй через минуту.");
+  throw new Error(`AI не ответил (${lastStatus}).`);
 }
 
 export const CHAT_IMAGES_BUCKET = "chat-images";
