@@ -95,6 +95,42 @@ function AppPage() {
     [setSection],
   );
 
+  // Slide a finger along the tab bar to switch tabs (like Telegram).
+  const dragRef = useRef<{ x: number; dragging: boolean; suppressClick: boolean } | null>(null);
+  const navDrag = useMemo(() => {
+    const tabAt = (el: HTMLElement, clientX: number) => {
+      const rect = el.getBoundingClientRect();
+      const inner = rect.width - 16;
+      const i = Math.floor(((clientX - rect.left - 8) / inner) * SECTIONS.length);
+      return SECTIONS[Math.min(SECTIONS.length - 1, Math.max(0, i))].id;
+    };
+    return {
+      down(e: React.PointerEvent<HTMLDivElement>) {
+        dragRef.current = { x: e.clientX, dragging: false, suppressClick: false };
+      },
+      move(e: React.PointerEvent<HTMLDivElement>) {
+        const d = dragRef.current;
+        if (!d) return;
+        if (!d.dragging && Math.abs(e.clientX - d.x) < 8) return;
+        if (!d.dragging) {
+          d.dragging = true;
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }
+        const id = tabAt(e.currentTarget, e.clientX);
+        if (id !== sectionRef.current) setSection(id);
+      },
+      up() {
+        const d = dragRef.current;
+        dragRef.current = d?.dragging ? { ...d, suppressClick: true } : null;
+      },
+      consumeClick() {
+        const suppress = !!dragRef.current?.suppressClick;
+        dragRef.current = null;
+        return suppress;
+      },
+    };
+  }, [setSection]);
+
   // Warm up the main tabs in the background so even the first switch is instant.
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -169,7 +205,13 @@ function AppPage() {
 
       {/* Bottom navigation */}
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)]">
-        <div className="relative mx-auto flex max-w-4xl items-stretch justify-between px-2">
+        <div
+          className="relative mx-auto flex max-w-4xl touch-none items-stretch justify-between px-2"
+          onPointerDown={navDrag.down}
+          onPointerMove={navDrag.move}
+          onPointerUp={navDrag.up}
+          onPointerCancel={navDrag.up}
+        >
           {/* One highlight that slides between tabs with a CSS transform (compositor-only). */}
           <span
             aria-hidden
@@ -194,7 +236,7 @@ function AppPage() {
             return (
               <button
                 key={s.id}
-                onClick={() => setSection(s.id)}
+                onClick={() => (navDrag.consumeClick() ? undefined : setSection(s.id))}
                 aria-label={s.label}
                 className={`relative flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 transition-colors ${
                   active ? "text-foreground" : "text-muted-foreground"
