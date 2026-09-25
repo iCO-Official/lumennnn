@@ -1,3 +1,4 @@
+import { localIso } from "@/lib/planner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -134,7 +135,7 @@ function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
   const [data, setData] = useState<Brief | null>(null);
   const [loading, setLoading] = useState(true);
   const [notifState, setNotifState] = useState<string>("default");
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = localIso();
 
   useEffect(() => {
     if (typeof Notification !== "undefined") {
@@ -148,7 +149,7 @@ function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
     }
     (async () => {
       try {
-        const r = await brief();
+        const r = await brief({ data: { today: localIso() } });
         setData(r);
         localStorage.setItem(cacheKey, JSON.stringify(r));
       } catch {
@@ -514,7 +515,7 @@ function SleepSection() {
     if (!h || h < 0 || h > 24) { toast.error("Часы выглядят странно"); return; }
     setSaving(true);
     const { data: u } = await supabase.auth.getUser();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localIso();
     const { data, error } = await supabase
       .from("sleep_logs")
       .upsert({ user_id: u.user!.id, hours: h, quality, log_date: today }, { onConflict: "user_id,log_date" })
@@ -701,7 +702,7 @@ function HealthSection() {
     e.preventDefault();
     setSaving(true);
     const { data: u } = await supabase.auth.getUser();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localIso();
     const payload = {
       user_id: u.user!.id,
       log_date: today,
@@ -777,7 +778,7 @@ function StatsSection() {
   useEffect(() => {
     (async () => {
       const since = new Date(); since.setDate(since.getDate() - 14);
-      const sinceIso = since.toISOString().slice(0, 10);
+      const sinceIso = localIso(since);
       const [sleep, tasks, workouts, health] = await Promise.all([
         supabase.from("sleep_logs").select("*").gte("log_date", sinceIso),
         supabase.from("tasks").select("*").gte("scheduled_for", sinceIso),
@@ -875,7 +876,7 @@ function AnalyzeButton() {
     setLoading(true);
     setResult(null);
     try {
-      const r = await fn();
+      const r = await fn({ data: { today: localIso() } });
       setResult(r.analysis);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Ошибка");
@@ -930,7 +931,7 @@ function AiSection() {
     setMessages((m) => [...m, { role: "user", content: userMsg }]);
     setSending(true);
     try {
-      const r = await send({ data: { message: userMsg } });
+      const r = await send({ data: { message: userMsg, today: localIso() } });
       setMessages((m) => [...m, { role: "assistant", content: r.reply }]);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Ошибка");
@@ -1036,7 +1037,7 @@ async function seedRoutinesForToday() {
   if (!u.user) return;
   const today = new Date();
   const dow = today.getDay();
-  const todayIso = today.toISOString().slice(0, 10);
+  const todayIso = localIso(today);
 
   const { data: routines } = await supabase
     .from("routines")
@@ -1383,7 +1384,7 @@ function MetricsSection() {
   async function load() {
     setLoading(true);
     const since = new Date(); since.setDate(since.getDate() - 14);
-    const sinceIso = since.toISOString().slice(0, 10);
+    const sinceIso = localIso(since);
     const [{ data: m }, { data: l }] = await Promise.all([
       supabase.from("custom_metrics").select("*").order("sort_order"),
       supabase.from("custom_metric_logs").select("*").gte("log_date", sinceIso).order("created_at", { ascending: false }),
@@ -1421,7 +1422,7 @@ function MetricsSection() {
   async function logValue(metric: Metric, raw: string) {
     if (!raw.trim()) return;
     const { data: u } = await supabase.auth.getUser();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localIso();
     const payload = {
       user_id: u.user!.id,
       metric_id: metric.id,
