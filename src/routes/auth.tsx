@@ -5,7 +5,6 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { LumenLogo } from "@/components/lumen-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Loader as Loader2 } from "lucide-react";
 
@@ -103,12 +102,12 @@ function AuthPage() {
   async function handleOAuth(provider: "google" | "apple") {
     setOauthLoading(provider);
     try {
-      const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin,
+      // Redirects to the provider; Supabase restores the session on return to /app.
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: `${window.location.origin}/app` },
       });
-      if (result.error) throw result.error;
-      if (result.redirected) return;
-      navigate({ to: "/app" });
+      if (error) throw error;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Не удалось войти";
       toast.error(message);

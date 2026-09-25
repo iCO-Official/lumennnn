@@ -2,8 +2,28 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODEL = "google/gemini-3-flash-preview";
+// Any OpenAI-compatible Chat Completions endpoint works (OpenAI, OpenRouter,
+// Google Gemini's OpenAI endpoint, ...). Configure via AI_API_URL / AI_API_KEY / AI_MODEL.
+const DEFAULT_API_URL = "https://api.openai.com/v1/chat/completions";
+const DEFAULT_MODEL = "gpt-4.1-mini";
+// Legacy fallback for deployments that still run on Lovable Cloud.
+const LOVABLE_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const LOVABLE_MODEL = "google/gemini-3-flash-preview";
+
+// Read inside a function: on edge runtimes env binds at request time.
+function aiConfig() {
+  if (process.env.AI_API_KEY) {
+    return {
+      url: process.env.AI_API_URL || DEFAULT_API_URL,
+      key: process.env.AI_API_KEY,
+      model: process.env.AI_MODEL || DEFAULT_MODEL,
+    };
+  }
+  if (process.env.LOVABLE_API_KEY) {
+    return { url: LOVABLE_GATEWAY, key: process.env.LOVABLE_API_KEY, model: LOVABLE_MODEL };
+  }
+  throw new Error("AI_API_KEY не задан");
+}
 
 type Msg = {
   role: "system" | "user" | "assistant" | "tool";
@@ -20,19 +40,18 @@ export type AiProposal =
   | { kind: "schedule"; date: string; items: { title: string; time: string | null }[] };
 
 async function rawGateway(messages: Msg[], tools?: unknown[]): Promise<GwChoice["message"]> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY не задан");
-  const res = await fetch(GATEWAY, {
+  const { url, key, model } = aiConfig();
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${key}`,
     },
-    body: JSON.stringify({ model: MODEL, messages, ...(tools ? { tools } : {}) }),
+    body: JSON.stringify({ model, messages, ...(tools ? { tools } : {}) }),
   });
   if (res.status === 429) throw new Error("Слишком много запросов. Попробуй позже.");
-  if (res.status === 402) throw new Error("Закончились AI-кредиты на воркспейсе.");
-  if (!res.ok) throw new Error(`AI Gateway: ${res.status}`);
+  if (res.status === 402) throw new Error("Закончились AI-кредиты.");
+  if (!res.ok) throw new Error(`AI API: ${res.status}`);
   const data = await res.json();
   return data?.choices?.[0]?.message ?? { content: "" };
 }

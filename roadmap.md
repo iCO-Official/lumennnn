@@ -10,5 +10,5 @@
 - [ ] Make AI full-height and convert schedule changes to confirmable proposals
 - [ ] Redesign light landing page with right-aligned iPhone
 - [ ] Harden PWA safe areas and standalone behavior
-- [ ] Remove optional platform-only runtime coupling and document local setup
+- [x] Remove optional platform-only runtime coupling and document local setup
 - [ ] Verify mobile, desktop, auth, data flows, and metadata
