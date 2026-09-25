@@ -2,10 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-// Any OpenAI-compatible Chat Completions endpoint works (OpenAI, OpenRouter,
-// Google Gemini's OpenAI endpoint, ...). Configure via AI_API_URL / AI_API_KEY / AI_MODEL.
-const DEFAULT_API_URL = "https://api.openai.com/v1/chat/completions";
-const DEFAULT_MODEL = "gpt-4.1-mini";
+// Google Gemini by default, via its OpenAI-compatible endpoint. Any other
+// OpenAI-compatible API works too: set AI_API_URL / AI_MODEL.
+const DEFAULT_API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const DEFAULT_MODEL = "gemini-flash-latest";
 // Legacy fallback for deployments that still run on Lovable Cloud.
 const LOVABLE_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_MODEL = "google/gemini-3-flash-preview";
@@ -25,9 +25,10 @@ function aiConfig() {
   throw new Error("AI_API_KEY не задан");
 }
 
+type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 type Msg = {
   role: "system" | "user" | "assistant" | "tool";
-  content: string | null;
+  content: string | ContentPart[] | null;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
 };
@@ -55,6 +56,28 @@ async function rawGateway(messages: Msg[], tools?: unknown[]): Promise<GwChoice[
   const data = await res.json();
   return data?.choices?.[0]?.message ?? { content: "" };
 }
+
+export const CHAT_IMAGES_BUCKET = "chat-images";
+
+function toBase64(bytes: Uint8Array) {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+async function loadChatImage(supabase: { storage: SupabaseStorage }, path: string) {
+  const { data, error } = await supabase.storage.from(CHAT_IMAGES_BUCKET).download(path);
+  if (error || !data) throw new Error("Не удалось прочитать фото");
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  return `data:${data.type || "image/jpeg"};base64,${toBase64(bytes)}`;
+}
+
+type SupabaseStorage = {
+  from: (bucket: string) => {
+    download: (path: string) => Promise<{ data: Blob | null; error: unknown }>;
+    remove: (paths: string[]) => Promise<unknown>;
+  };
+};
 
 async function callGateway(messages: Msg[]): Promise<string> {
   const m = await rawGateway(messages);
@@ -93,9 +116,19 @@ ${ctx.length ? "Что ты знаешь о собеседнике:\n" + ctx.joi
 
 export const chatWithAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ message: z.string().min(1).max(4000) }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({ message: z.string().max(4000), imagePath: z.string().max(300).nullish() })
+      .refine((v) => v.message.trim() || v.imagePath, "Пустое сообщение")
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const imagePath = data.imagePath ?? null;
+    if (imagePath && !new RegExp(`^${userId}/[\\w-]+\\.(jpe?g|png|webp)$`).test(imagePath)) {
+      throw new Error("Некорректное фото");
+    }
+    const text = data.message.trim() || "Посмотри на фото.";
 
     const [{ data: profile }, { data: history }, { data: gaming }, { data: metrics }] = await Promise.all([
       supabase.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
@@ -119,8 +152,17 @@ export const chatWithAi = createServerFn({ method: "POST" })
 
     const messages: Msg[] = [
       { role: "system", content: system + `\n\nСегодня ${new Date().toISOString().slice(0, 10)}.\n` + ROUTINE_TOOLS_HINT },
-      ...((history ?? []) as Msg[]),
-      { role: "user", content: data.message },
+      // Photo-only messages are stored with empty text; old photos are not re-sent to the model.
+      ...(history ?? []).map((m) => ({ role: m.role, content: m.content || "[фото]" }) as Msg),
+      {
+        role: "user",
+        content: imagePath
+          ? [
+              { type: "text", text },
+              { type: "image_url", image_url: { url: await loadChatImage(supabase, imagePath) } },
+            ]
+          : text,
+      },
     ];
 
     let reply = "";
@@ -148,7 +190,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
     if (!reply) reply = "Готово.";
 
     await supabase.from("ai_messages").insert([
-      { user_id: userId, role: "user", content: data.message },
+      { user_id: userId, role: "user", content: data.message.trim(), ...(imagePath ? { image_path: imagePath } : {}) },
       { user_id: userId, role: "assistant", content: reply },
     ]);
 
@@ -158,7 +200,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
 const ROUTINE_TOOLS_HINT = `Ты помогаешь планировать, но НИКОГДА сам не меняешь данные.
 Когда пользователь просит создать задачу, составить расписание или перенести дело, используй подходящий инструмент предложения.
 Инструмент только формирует карточку подтверждения. Скажи коротко, что предлагаешь, и попроси подтвердить.
-Дата строго YYYY-MM-DD, время HH:MM или null. Для поиска существующего дела сначала используй list_tasks.`;
+Дата строго YYYY-MM-DD, время HH:MM или пустая строка. Для поиска существующего дела сначала используй list_tasks.`;
 
 const ROUTINE_TOOLS = [
   {
@@ -168,9 +210,8 @@ const ROUTINE_TOOLS = [
       description: "Найти задачи и экземпляры рутин пользователя по дате или названию",
       parameters: {
         type: "object",
-        properties: { date: { type: ["string", "null"] }, query: { type: ["string", "null"] } },
+        properties: { date: { type: "string", description: "YYYY-MM-DD или пусто" }, query: { type: "string", description: "часть названия или пусто" } },
         required: ["date", "query"],
-        additionalProperties: false,
       },
     },
   },
@@ -187,14 +228,12 @@ const ROUTINE_TOOLS = [
             type: "array",
             items: {
               type: "object",
-              properties: { title: { type: "string" }, time: { type: ["string", "null"] } },
+              properties: { title: { type: "string" }, time: { type: "string", description: "HH:MM или пусто" } },
               required: ["title", "time"],
-              additionalProperties: false,
-            },
+                  },
           },
         },
         required: ["date", "items"],
-        additionalProperties: false,
       },
     },
   },
@@ -208,11 +247,10 @@ const ROUTINE_TOOLS = [
         properties: {
           title: { type: "string" },
           date: { type: "string" },
-          time: { type: ["string", "null"] },
+          time: { type: "string", description: "HH:MM или пусто" },
           repeat_days: { type: "array", items: { type: "integer" }, description: "0=Вс…6=Сб; пусто для одноразовой задачи" },
         },
         required: ["title", "date", "time", "repeat_days"],
-        additionalProperties: false,
       },
     },
   },
@@ -225,14 +263,13 @@ const ROUTINE_TOOLS = [
         type: "object",
         properties: {
           task_id: { type: "string" },
-          routine_id: { type: ["string", "null"] },
+          routine_id: { type: "string", description: "id рутины или пусто" },
           title: { type: "string" },
           date: { type: "string" },
           from_date: { type: "string" },
-          time: { type: ["string", "null"] },
+          time: { type: "string", description: "HH:MM или пусто" },
         },
         required: ["task_id", "routine_id", "title", "date", "from_date", "time"],
-        additionalProperties: false,
       },
     },
   },
@@ -325,7 +362,12 @@ ${JSON.stringify({ routines: routines.data ?? [], tasks: tasks.data ?? [], sleep
 export const resetAiChat = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await context.supabase.from("ai_messages").delete().eq("user_id", context.userId);
+    const { supabase, userId } = context;
+    // image_path may not exist yet if the chat-images migration isn't applied; then there is nothing to remove.
+    const { data: withImages } = await supabase.from("ai_messages").select("image_path").eq("user_id", userId).not("image_path", "is", null);
+    const paths = (withImages ?? []).map((row) => row.image_path).filter((path): path is string => !!path);
+    if (paths.length) await supabase.storage.from(CHAT_IMAGES_BUCKET).remove(paths);
+    await supabase.from("ai_messages").delete().eq("user_id", userId);
     return { ok: true };
   });
 
