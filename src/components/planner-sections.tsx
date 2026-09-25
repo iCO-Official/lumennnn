@@ -548,7 +548,7 @@ function TaskEditor({
             className={`grid gap-3 ${mode === "list" || seriesEdit ? "grid-cols-1" : "grid-cols-2"}`}
           >
             {!seriesEdit && (
-              <label className="space-y-1 text-xs text-muted-foreground">
+              <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
                 {repeat === "none" ? "Дата" : "Начиная с"}
                 <input
                   type="date"
@@ -559,7 +559,7 @@ function TaskEditor({
               </label>
             )}
             {mode === "one" && (
-              <label className="space-y-1 text-xs text-muted-foreground">
+              <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
                 Время
                 <input
                   type="time"

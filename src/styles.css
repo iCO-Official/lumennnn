@@ -106,6 +106,19 @@
     body { padding-top: env(safe-area-inset-top); }
   }
   ::selection { background: var(--color-foreground); color: var(--color-background); }
+  /* iOS Safari gives date/time inputs an intrinsic min width, so they overflow their column. */
+  input[type="date"],
+  input[type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+  }
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value {
+    text-align: left;
+  }
 }
 
 @utility font-serif { font-family: var(--font-serif); font-feature-settings: "liga"; }
