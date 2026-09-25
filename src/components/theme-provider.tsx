@@ -10,7 +10,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("dark");
 
   useEffect(() => {
-    const stored = (typeof window !== "undefined" && (localStorage.getItem(STORAGE_KEY) as Theme | null)) || "dark";
+    const stored =
+      (typeof window !== "undefined" && (localStorage.getItem(STORAGE_KEY) as Theme | null)) ||
+      "dark";
     setThemeState(stored);
   }, []);
 
@@ -19,11 +21,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     root.classList.remove("dark", "light");
     root.classList.add(theme);
     root.style.colorScheme = theme;
-    try { localStorage.setItem(STORAGE_KEY, theme); } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEY, theme);
+    } catch {
+      // Storage can be unavailable (private mode); the theme still applies.
+    }
   }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme: setThemeState, toggle: () => setThemeState(t => t === "dark" ? "light" : "dark") }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        setTheme: setThemeState,
+        toggle: () => setThemeState((t) => (t === "dark" ? "light" : "dark")),
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

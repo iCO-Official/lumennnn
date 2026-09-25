@@ -14,6 +14,8 @@ import { ThemeProvider } from "../components/theme-provider";
 import { Toaster } from "../components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+const OG_IMAGE = `${import.meta.env.VITE_SITE_URL ?? ""}/og-image.jpg`;
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -33,14 +35,19 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
-  useEffect(() => { console.error(error); }, [error]);
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold text-foreground">Что-то пошло не так</h1>
         <p className="mt-2 text-sm text-muted-foreground">Попробуйте обновить страницу.</p>
         <button
-          onClick={() => { router.invalidate(); reset(); }}
+          onClick={() => {
+            router.invalidate();
+            reset();
+          }}
           className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
         >
           Повторить
@@ -56,10 +63,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Lumen — твой ежедневник и AI-аналитик дня" },
-      { name: "description", content: "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей." },
+      {
+        name: "description",
+        content:
+          "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей.",
+      },
       { name: "theme-color", content: "#000000" },
       { property: "og:title", content: "Lumen — твой ежедневник и AI-аналитик дня" },
-      { property: "og:description", content: "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей." },
+      {
+        property: "og:description",
+        content:
+          "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
@@ -67,9 +82,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-title", content: "Lumen" },
       { name: "google", content: "notranslate" },
       { name: "twitter:title", content: "Lumen — твой ежедневник и AI-аналитик дня" },
-      { name: "twitter:description", content: "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/32a9d61b-2fd0-4e44-825c-b8632e331389" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/32a9d61b-2fd0-4e44-825c-b8632e331389" },
+      {
+        name: "twitter:description",
+        content:
+          "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей.",
+      },
+      { property: "og:image", content: OG_IMAGE },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Lumen — твой день в твоих руках" },
+      { name: "twitter:image", content: OG_IMAGE },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -79,9 +101,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap",
+      },
     ],
-
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -109,7 +133,9 @@ function RootComponent() {
 
   useEffect(() => {
     try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((event) => {
         if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
         router.invalidate();
         if (event !== "SIGNED_OUT") queryClient.invalidateQueries();

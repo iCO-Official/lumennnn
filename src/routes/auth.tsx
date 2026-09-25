@@ -144,7 +144,9 @@ function AuthPage() {
             {isSignup ? "Добро пожаловать" : "С возвращением"}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {isSignup ? "Расскажи пару штук о себе — AI будет общаться по-человечески." : "Войди, чтобы продолжить."}
+            {isSignup
+              ? "Расскажи пару штук о себе — AI будет общаться по-человечески."
+              : "Войди, чтобы продолжить."}
           </p>
 
           <div className="mt-6 flex flex-col gap-2">
@@ -154,7 +156,11 @@ function AuthPage() {
               disabled={!!oauthLoading}
               className="inline-flex h-11 items-center justify-center gap-3 rounded-full border border-border bg-background text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
             >
-              {oauthLoading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
+              {oauthLoading === "google" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <GoogleIcon />
+              )}
               Продолжить с Google
             </button>
           </div>
@@ -208,9 +214,15 @@ function AuthPage() {
                       <button
                         key={it.id}
                         type="button"
-                        onClick={() => setInterests((arr) => active ? arr.filter((x) => x !== it.id) : [...arr, it.id])}
+                        onClick={() =>
+                          setInterests((arr) =>
+                            active ? arr.filter((x) => x !== it.id) : [...arr, it.id],
+                          )
+                        }
                         className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                          active ? "border-foreground bg-foreground text-background" : "border-input bg-background text-muted-foreground hover:text-foreground"
+                          active
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-input bg-background text-muted-foreground hover:text-foreground"
                         }`}
                       >
                         {it.label}
@@ -266,7 +278,10 @@ function AuthPage() {
 function GoogleIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
-      <path fill="#FFC107" d="M21.8 10.4H12v3.5h5.6c-.5 2.5-2.6 4-5.6 4-3.3 0-6-2.7-6-6s2.7-6 6-6c1.5 0 2.9.6 4 1.5l2.5-2.5C16.9 3.3 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c5.5 0 9.6-3.9 9.6-9.4 0-.6 0-1.2-.2-1.8z" />
+      <path
+        fill="#FFC107"
+        d="M21.8 10.4H12v3.5h5.6c-.5 2.5-2.6 4-5.6 4-3.3 0-6-2.7-6-6s2.7-6 6-6c1.5 0 2.9.6 4 1.5l2.5-2.5C16.9 3.3 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c5.5 0 9.6-3.9 9.6-9.4 0-.6 0-1.2-.2-1.8z"
+      />
     </svg>
   );
 }

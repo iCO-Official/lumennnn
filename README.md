@@ -22,6 +22,22 @@ npm start              # Node-сервер из .output/
 определяется автоматически. Для явного выбора задай `NITRO_PRESET`
 (например `NITRO_PRESET=cloudflare-module`).
 
+## Структура
+
+- `src/routes/_authenticated/app.index.tsx` — главный экран (`/app`): нижняя навигация и разделы.
+- `src/routes/_authenticated/app.more.tsx` — «Ещё» (`/app/more`): тренировки, здоровье, метрики, игры, статистика.
+- `src/components/app/*` — разделы приложения, по файлу на тему; `shared.tsx` — общие мелкие компоненты.
+- `src/components/planner-sections.tsx`, `src/lib/planner.ts` — задачи и рутины.
+- `src/lib/ai.functions.ts` — серверные функции AI.
+
+## Проверки
+
+```bash
+npm run typecheck && npm run lint && npm run build
+```
+
+Их же запускает GitHub Actions (`.github/workflows/ci.yml`) на каждый pull request и push в `main`.
+
 ## Переменные окружения
 
 См. `.env.example`.

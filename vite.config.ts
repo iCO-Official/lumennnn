@@ -13,6 +13,11 @@ const SUPABASE_PROJECT_ID = "hdzoutvrzblwhyfcoqwp";
 
 export default defineConfig(({ command, mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ""), ...process.env };
+  // Absolute site URL for link previews (og:image). Vercel sets
+  // VERCEL_PROJECT_PRODUCTION_URL at build time; VITE_SITE_URL overrides it.
+  const siteUrl =
+    env.VITE_SITE_URL ||
+    (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
 
   return {
     server: { host: "::", port: 8080 },
@@ -24,6 +29,7 @@ export default defineConfig(({ command, mode }) => {
       "import.meta.env.VITE_SUPABASE_PROJECT_ID": JSON.stringify(
         env.VITE_SUPABASE_PROJECT_ID || SUPABASE_PROJECT_ID,
       ),
+      "import.meta.env.VITE_SITE_URL": JSON.stringify(siteUrl.replace(/\/$/, "")),
     },
     css: { transformer: "lightningcss" },
     resolve: {

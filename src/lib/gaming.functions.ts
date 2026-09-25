@@ -8,9 +8,14 @@ async function fetchSteam(steamId: string) {
   if (!key) throw new Error("STEAM_API_KEY не задан");
   const url = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=${key}&steamid=${steamId}&include_appinfo=1&include_played_free_games=1&format=json`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Steam: ${res.status}. Проверь Steam ID (64-bit) и публичность профиля.`);
+  if (!res.ok)
+    throw new Error(`Steam: ${res.status}. Проверь Steam ID (64-bit) и публичность профиля.`);
   const data = await res.json();
-  const games = (data?.response?.games ?? []) as Array<{ name: string; playtime_forever: number; appid: number }>;
+  const games = (data?.response?.games ?? []) as Array<{
+    name: string;
+    playtime_forever: number;
+    appid: number;
+  }>;
   const totalMinutes = games.reduce((s, g) => s + (g.playtime_forever || 0), 0);
   const top = [...games]
     .sort((a, b) => (b.playtime_forever || 0) - (a.playtime_forever || 0))
@@ -25,7 +30,10 @@ async function fetchFaceit(nickname: string) {
   if (!key) throw new Error("FACEIT_API_KEY не задан");
   const headers = { Authorization: `Bearer ${key}` };
 
-  const playerRes = await fetch(`https://open.faceit.com/data/v4/players?nickname=${encodeURIComponent(nickname)}`, { headers });
+  const playerRes = await fetch(
+    `https://open.faceit.com/data/v4/players?nickname=${encodeURIComponent(nickname)}`,
+    { headers },
+  );
   if (!playerRes.ok) throw new Error(`Faceit: игрок не найден (${playerRes.status})`);
   const player = await playerRes.json();
   const game = player?.games?.cs2 ?? player?.games?.csgo;
@@ -38,22 +46,33 @@ async function fetchFaceit(nickname: string) {
   type Recent = { competition: string | null; status: string | null; finished_at: number | null };
   let recent: Recent[] = [];
   try {
-    const statsRes = await fetch(`https://open.faceit.com/data/v4/players/${playerId}/stats/cs2`, { headers });
+    const statsRes = await fetch(`https://open.faceit.com/data/v4/players/${playerId}/stats/cs2`, {
+      headers,
+    });
     if (statsRes.ok) {
       const stats = await statsRes.json();
-      kd = parseFloat(stats?.lifetime?.["Average K/D Ratio"] ?? stats?.lifetime?.["K/D Ratio"]) || null;
+      kd =
+        parseFloat(stats?.lifetime?.["Average K/D Ratio"] ?? stats?.lifetime?.["K/D Ratio"]) ||
+        null;
       winrate = parseFloat(stats?.lifetime?.["Win Rate %"]) || null;
     }
-    const histRes = await fetch(`https://open.faceit.com/data/v4/players/${playerId}/history?game=cs2&limit=5`, { headers });
+    const histRes = await fetch(
+      `https://open.faceit.com/data/v4/players/${playerId}/history?game=cs2&limit=5`,
+      { headers },
+    );
     if (histRes.ok) {
       const hist = await histRes.json();
-      recent = (hist?.items ?? []).map((m: { competition_name?: string; status?: string; finished_at?: number }) => ({
-        competition: m.competition_name ?? null,
-        status: m.status ?? null,
-        finished_at: m.finished_at ?? null,
-      }));
+      recent = (hist?.items ?? []).map(
+        (m: { competition_name?: string; status?: string; finished_at?: number }) => ({
+          competition: m.competition_name ?? null,
+          status: m.status ?? null,
+          finished_at: m.finished_at ?? null,
+        }),
+      );
     }
-  } catch {}
+  } catch {
+    // Match history is optional; return the profile stats without it.
+  }
 
   return {
     elo: game?.faceit_elo ?? null,
@@ -67,10 +86,12 @@ async function fetchFaceit(nickname: string) {
 export const syncGaming = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({
-      steamId: z.string().trim().optional().nullable(),
-      faceitNickname: z.string().trim().optional().nullable(),
-    }).parse(d),
+    z
+      .object({
+        steamId: z.string().trim().optional().nullable(),
+        faceitNickname: z.string().trim().optional().nullable(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -89,7 +110,9 @@ export const syncGaming = createServerFn({ method: "POST" })
       faceit_level: number | null;
       faceit_kd: number | null;
       faceit_winrate: number | null;
-      faceit_recent: { competition: string | null; status: string | null; finished_at: number | null }[] | null;
+      faceit_recent:
+        | { competition: string | null; status: string | null; finished_at: number | null }[]
+        | null;
     } = {
       steam_total_minutes: null,
       steam_top_games: null,
