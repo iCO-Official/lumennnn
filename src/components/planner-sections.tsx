@@ -16,18 +16,20 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, GripVertical, Pencil, Plus, Repeat, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import {
   addDays,
+  createRoutine,
   createTask,
-  ensureRoutineInstances,
+  endRoutine,
   loadRoutines,
   loadTasks,
   localIso,
   removeTask,
+  setRoutineActive,
   updateRoutineFuture,
   updateTaskInstance,
   type PlannerRoutine,
@@ -321,7 +323,11 @@ function TaskGroup({
             >
               {task.title}
             </p>
-            {task.routine_id && <span className="text-[10px] text-muted-foreground">Рутина</span>}
+            {task.routine_id && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Repeat className="h-3 w-3" /> Рутина
+              </span>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -446,12 +452,12 @@ function TaskEditor({
     try {
       if (task) {
         if (task.routine_id && editAllFuture)
-          await updateRoutineFuture(task.routine_id, task.scheduled_for, {
+          await updateRoutineFuture(task.routine_id, task.occurrence_date ?? task.scheduled_for, {
             title: title.trim(),
             time_of_day: time || null,
           });
         else
-          await updateTaskInstance(task.id, {
+          await updateTaskInstance(task, {
             title: title.trim(),
             scheduled_for: date,
             scheduled_time: time || null,
@@ -554,13 +560,15 @@ function ScopeDialog({
         <h3 className="font-serif text-2xl">
           {action.mode === "edit" ? "Что изменить?" : "Что удалить?"}
         </h3>
-        <p className="mt-2 text-sm text-muted-foreground">Прошедшие дни останутся без изменений.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Это дело из рутины. Прошедшие и выполненные дни не изменятся.
+        </p>
         <div className="mt-5 space-y-2">
           <Button className="h-11 w-full" onClick={onToday}>
-            Только сегодня
+            {action.mode === "edit" ? "Только этот день" : "Пропустить этот день"}
           </Button>
           <Button className="h-11 w-full" variant="secondary" onClick={onFuture}>
-            Все будущие
+            {action.mode === "edit" ? "Этот и следующие" : "Удалить рутину с этого дня"}
           </Button>
           <Button className="h-11 w-full" variant="ghost" onClick={onCancel}>
             Отмена
@@ -629,24 +637,21 @@ export function RoutinesSection() {
     setRoutines((items) =>
       items.map((item) => (item.id === routine.id ? { ...item, active } : item)),
     );
-    const { error } = await supabase.from("routines").update({ active }).eq("id", routine.id);
-    if (error) toast.error(error.message);
+    try {
+      await setRoutineActive(routine.id, active);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      void refresh();
+    }
   }
   async function remove(routine: PlannerRoutine) {
-    if (!confirm(`Удалить «${routine.title}» и все будущие экземпляры?`)) return;
-    const today = localIso();
-    const { error } = await supabase
-      .from("routines")
-      .update({ active: false, ends_on: addDays(today, -1) })
-      .eq("id", routine.id);
-    if (!error)
-      await supabase
-        .from("tasks")
-        .delete()
-        .eq("routine_id", routine.id)
-        .gte("scheduled_for", today);
-    if (error) toast.error(error.message);
-    else void refresh();
+    if (!confirm(`Удалить «${routine.title}»? Выполненные дни останутся в истории.`)) return;
+    try {
+      await endRoutine(routine, localIso());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить");
+    }
+    void refresh();
   }
   return (
     <section className="space-y-5">
@@ -695,7 +700,7 @@ export function RoutinesSection() {
             void refresh();
           }}
         />
-      )}{" "}
+      )}
     </section>
   );
 }
@@ -784,19 +789,12 @@ function RoutineEditor({
           weekdays: days,
         });
       } else {
-        const { data: u } = await supabase.auth.getUser();
-        if (!u.user) throw new Error("Войди в аккаунт");
-        const { error } = await supabase.from("routines").insert({
-          user_id: u.user.id,
+        await createRoutine({
           title: title.trim(),
-          time_of_day: time || null,
+          time: time || null,
           weekdays: days,
-          starts_on: localIso(),
-          day_of_week: days.length === 1 ? days[0] : null,
-          sort_order: 999,
+          startsOn: localIso(),
         });
-        if (error) throw error;
-        await ensureRoutineInstances(localIso(), addDays(localIso(), 31));
       }
       onSaved();
     } catch (error) {

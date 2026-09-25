@@ -40,7 +40,7 @@ export function StatsSection() {
       const sinceIso = localIso(since);
       const [sleep, tasks, workouts, health] = await Promise.all([
         supabase.from("sleep_logs").select("*").gte("log_date", sinceIso),
-        supabase.from("tasks").select("*").gte("scheduled_for", sinceIso),
+        supabase.from("tasks").select("*").eq("skipped", false).gte("scheduled_for", sinceIso),
         supabase.from("workouts").select("*").gte("workout_date", sinceIso),
         supabase.from("health_logs").select("*").gte("log_date", sinceIso),
       ]);

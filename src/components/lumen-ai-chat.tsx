@@ -174,17 +174,20 @@ export function LumenAiChat() {
           repeatDays: proposal.repeatDays ?? [],
         });
       } else if (proposal.kind === "update_task") {
-        if (proposal.routineId)
+        if (proposal.routineId && proposal.allFuture)
           await updateRoutineFuture(proposal.routineId, proposal.fromDate, {
             title: proposal.title,
             time_of_day: proposal.time,
           });
         else
-          await updateTaskInstance(proposal.taskId, {
-            title: proposal.title,
-            scheduled_for: proposal.date,
-            scheduled_time: proposal.time,
-          });
+          await updateTaskInstance(
+            { id: proposal.taskId, routine_id: proposal.routineId ?? null },
+            {
+              title: proposal.title,
+              scheduled_for: proposal.date,
+              scheduled_time: proposal.time,
+            },
+          );
       } else {
         for (const item of proposal.items)
           await createTask({
@@ -370,7 +373,9 @@ function ProposalCard({
     proposal.kind === "create_task"
       ? "Создать задачу"
       : proposal.kind === "update_task"
-        ? "Изменить задачу"
+        ? proposal.allFuture
+          ? "Изменить рутину"
+          : "Изменить задачу"
         : "Добавить расписание";
   const details =
     proposal.kind === "schedule"

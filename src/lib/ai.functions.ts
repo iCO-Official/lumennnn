@@ -46,6 +46,8 @@ export type AiProposal =
       taskId: string;
       routineId?: string | null;
       fromDate: string;
+      /** Routine instance: change the whole routine from fromDate instead of one day. */
+      allFuture?: boolean;
       title: string;
       date: string;
       time: string | null;
@@ -324,7 +326,8 @@ const ROUTINE_TOOLS = [
     type: "function",
     function: {
       name: "propose_update_task",
-      description: "Предложить перенос или изменение найденной задачи",
+      description:
+        "Предложить перенос или изменение найденной задачи. Для дела из рутины по умолчанию меняется только этот день; all_future=true меняет саму рутину (название/время) с этого дня — только если пользователь явно просит изменить рутину или «всегда».",
       parameters: {
         type: "object",
         properties: {
@@ -334,8 +337,9 @@ const ROUTINE_TOOLS = [
           date: { type: "string" },
           from_date: { type: "string" },
           time: { type: "string", description: "HH:MM или пусто" },
+          all_future: { type: "boolean", description: "изменить всю рутину с этого дня" },
         },
-        required: ["task_id", "routine_id", "title", "date", "from_date", "time"],
+        required: ["task_id", "routine_id", "title", "date", "from_date", "time", "all_future"],
       },
     },
   },
@@ -354,8 +358,9 @@ async function runRoutineTool(
   if (name === "list_tasks") {
     let query = supabase
       .from("tasks")
-      .select("id,title,scheduled_for,scheduled_time,routine_id")
-      .eq("user_id", userId);
+      .select("id,title,scheduled_for,scheduled_time,routine_id,occurrence_date")
+      .eq("user_id", userId)
+      .eq("skipped", false);
     if (args?.date) query = query.eq("scheduled_for", String(args.date));
     if (args?.query) query = query.ilike("title", `%${String(args.query).slice(0, 100)}%`);
     const { data } = await query.order("scheduled_for", { ascending: true }).limit(30);
@@ -396,6 +401,7 @@ async function runRoutineTool(
       title: String(args.title).slice(0, 200),
       date: String(args.date),
       fromDate: String(args.from_date),
+      allFuture: args.all_future === true && !!args.routine_id,
       time: time(args.time),
     };
     return { result: { proposed: true }, proposal };
@@ -422,13 +428,17 @@ export const dailyBrief = createServerFn({ method: "POST" })
         .maybeSingle(),
       supabase
         .from("routines")
-        .select("title, time_of_day, day_of_week")
+        .select("title, time_of_day, weekdays")
         .eq("user_id", userId)
-        .or(`day_of_week.eq.${dow},day_of_week.is.null`),
+        .eq("active", true)
+        .contains("weekdays", [dow])
+        .lte("starts_on", todayIso)
+        .or(`ends_on.is.null,ends_on.gte.${todayIso}`),
       supabase
         .from("tasks")
         .select("title, completed, scheduled_for")
         .eq("user_id", userId)
+        .eq("skipped", false)
         .gte("scheduled_for", since),
       supabase
         .from("sleep_logs")
@@ -454,7 +464,7 @@ export const dailyBrief = createServerFn({ method: "POST" })
       {
         role: "user",
         content: `Сегодня ${todayIso}. Вот мои данные за неделю в JSON:
-${JSON.stringify({ routines: routines.data ?? [], tasks: tasks.data ?? [], sleep: sleep.data ?? [], journal: journal.data ?? [] })}
+${JSON.stringify({ routines: (routines.data ?? []).map(({ title, time_of_day }) => ({ title, time_of_day })), tasks: tasks.data ?? [], sleep: sleep.data ?? [], journal: journal.data ?? [] })}
 
 Ответь ТОЛЬКО валидным JSON без markdown:
 {"emoji":"один эмодзи-смайлик твоего настроения","mood":"1-2 слова о настроении","message":"тёплое обращение ко мне, 1-2 предложения","tips":["совет 1","совет 2","совет 3"]}
@@ -519,6 +529,7 @@ export const analyzeWeek = createServerFn({ method: "POST" })
           .from("tasks")
           .select("title, scope, completed, scheduled_for")
           .eq("user_id", userId)
+          .eq("skipped", false)
           .gte("scheduled_for", sinceIso),
         supabase
           .from("sleep_logs")

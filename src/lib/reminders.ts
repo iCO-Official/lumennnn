@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { ensureRoutineInstances } from "@/lib/planner";
 
 /**
  * Напоминания о невыполненных делах.
@@ -77,13 +78,16 @@ async function loadPending(): Promise<Pending[]> {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) return [];
   const iso = todayIso();
+  // Today's routine instances may not exist yet if Plans wasn't opened today.
+  await ensureRoutineInstances(iso, iso).catch(() => undefined);
 
   const { data: tasks } = await supabase
     .from("tasks")
     .select("id, title, completed, scheduled_time, scheduled_for")
     .eq("user_id", u.user.id)
     .eq("scheduled_for", iso)
-    .eq("completed", false);
+    .eq("completed", false)
+    .eq("skipped", false);
 
   if (!tasks || tasks.length === 0) return [];
 
