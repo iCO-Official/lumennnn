@@ -113,6 +113,9 @@
     -webkit-text-size-adjust: 100%;
   }
   body { overscroll-behavior-y: none; }
+  /* No scrollbars: the app scrolls like a native one. */
+  html, body, * { scrollbar-width: none; }
+  ::-webkit-scrollbar { display: none; width: 0; height: 0; }
   button, a, [role="button"], label, nav {
     -webkit-user-select: none;
     user-select: none;
@@ -147,6 +150,16 @@
     linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 56px 56px;
+}
+
+/* Full-screen height that accounts for the standalone-mode top padding on body,
+   so short screens don't scroll by the notch height. */
+@utility min-h-app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  @media (display-mode: standalone) {
+    min-height: calc(100dvh - env(safe-area-inset-top));
+  }
 }
 
 @utility bg-glow { background-image: var(--glow); }

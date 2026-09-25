@@ -79,7 +79,7 @@ function SettingsPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground">
+    <div className="relative min-h-app bg-background text-foreground">
       <header className="relative z-10 mx-auto flex max-w-2xl items-center justify-between px-5 pt-3 sm:px-8 sm:pt-4">
         <Link
           to="/app"
