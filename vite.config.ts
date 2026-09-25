@@ -30,6 +30,15 @@ export default defineConfig(({ command, mode }) => {
         env.VITE_SUPABASE_PROJECT_ID || SUPABASE_PROJECT_ID,
       ),
       "import.meta.env.VITE_SITE_URL": JSON.stringify(siteUrl.replace(/\/$/, "")),
+      // Shown in Settings → Приложение: build date + commit (set by Vercel at build time).
+      "import.meta.env.VITE_APP_VERSION": JSON.stringify(
+        [
+          new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }),
+          (env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7),
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      ),
     },
     css: { transformer: "lightningcss" },
     resolve: {

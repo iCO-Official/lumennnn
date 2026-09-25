@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LumenLogo } from "@/components/lumen-logo";
-import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Calendar,
   NotebookPen,
@@ -96,17 +95,35 @@ function AppPage() {
   );
 
   // Slide a finger along the tab bar to switch tabs (like Telegram).
-  const dragRef = useRef<{ x: number; dragging: boolean; suppressClick: boolean } | null>(null);
+  const dragRef = useRef<{
+    x: number;
+    lastX: number;
+    lastT: number;
+    dragging: boolean;
+    suppressClick: boolean;
+  } | null>(null);
+  // While dragging, the highlight follows the finger and stretches with its speed.
+  const [pill, setPill] = useState<{ x: number; stretch: number } | null>(null);
+  const settleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const navDrag = useMemo(() => {
-    const tabAt = (el: HTMLElement, clientX: number) => {
+    const geometry = (el: HTMLElement, clientX: number) => {
       const rect = el.getBoundingClientRect();
-      const inner = rect.width - 16;
-      const i = Math.floor(((clientX - rect.left - 8) / inner) * SECTIONS.length);
-      return SECTIONS[Math.min(SECTIONS.length - 1, Math.max(0, i))].id;
+      const tab = (rect.width - 16) / SECTIONS.length;
+      const offset = clientX - rect.left - 8;
+      const i = Math.min(SECTIONS.length - 1, Math.max(0, Math.floor(offset / tab)));
+      const x = Math.min(tab * (SECTIONS.length - 1), Math.max(0, offset - tab / 2));
+      return { id: SECTIONS[i].id, x };
     };
     return {
       down(e: React.PointerEvent<HTMLDivElement>) {
-        dragRef.current = { x: e.clientX, dragging: false, suppressClick: false };
+        const now = performance.now();
+        dragRef.current = {
+          x: e.clientX,
+          lastX: e.clientX,
+          lastT: now,
+          dragging: false,
+          suppressClick: false,
+        };
       },
       move(e: React.PointerEvent<HTMLDivElement>) {
         const d = dragRef.current;
@@ -116,11 +133,20 @@ function AppPage() {
           d.dragging = true;
           e.currentTarget.setPointerCapture(e.pointerId);
         }
-        const id = tabAt(e.currentTarget, e.clientX);
+        const now = performance.now();
+        const speed = Math.abs(e.clientX - d.lastX) / Math.max(1, now - d.lastT); // px/ms
+        d.lastX = e.clientX;
+        d.lastT = now;
+        const { id, x } = geometry(e.currentTarget, e.clientX);
+        setPill({ x, stretch: 1 + Math.min(0.6, speed * 0.45) });
+        clearTimeout(settleTimer.current);
+        settleTimer.current = setTimeout(() => setPill((p) => p && { ...p, stretch: 1 }), 90);
         if (id !== sectionRef.current) setSection(id);
       },
       up() {
         const d = dragRef.current;
+        clearTimeout(settleTimer.current);
+        setPill(null);
         dragRef.current = d?.dragging ? { ...d, suppressClick: true } : null;
       },
       consumeClick() {
@@ -163,13 +189,12 @@ function AppPage() {
         <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-2 sm:px-8 sm:pt-4">
           <LumenLogo />
           <div className="flex items-center gap-2">
-            <ThemeToggle className="!h-11 !w-11" />
             <Link
               to="/app/settings"
               aria-label="Настройки"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-card transition-colors hover:bg-accent"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-card transition-colors hover:bg-accent"
             >
-              <SettingsIcon className="h-4 w-4" />
+              <SettingsIcon className="h-6 w-6" />
             </Link>
           </div>
         </header>
@@ -204,7 +229,7 @@ function AppPage() {
       </main>
 
       {/* Bottom navigation */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(6px,calc(env(safe-area-inset-bottom)-14px))]">
         <div
           className="relative mx-auto flex max-w-4xl touch-none items-stretch justify-between px-2"
           onPointerDown={navDrag.down}
@@ -212,23 +237,29 @@ function AppPage() {
           onPointerUp={navDrag.up}
           onPointerCancel={navDrag.up}
         >
-          {/* One highlight that slides between tabs with a CSS transform (compositor-only). */}
+          {/* One highlight, moved with CSS transforms (compositor-only). Follows the finger
+              while dragging and stretches with its speed, then springs onto the tab. */}
           <span
             aria-hidden
-            className="pointer-events-none absolute top-2.5 h-8 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+            className="pointer-events-none absolute top-1.5 h-11"
             style={{
               left: "0.5rem",
               width: `calc((100% - 1rem) / ${SECTIONS.length})`,
-              transform: `translateX(${
-                Math.max(
-                  0,
-                  SECTIONS.findIndex((s) => s.id === section),
-                ) * 100
-              }%)`,
+              transform: pill
+                ? `translateX(${pill.x}px) scale(${pill.stretch}, 1.08)`
+                : `translateX(${
+                    Math.max(
+                      0,
+                      SECTIONS.findIndex((s) => s.id === section),
+                    ) * 100
+                  }%)`,
+              transition: pill
+                ? "transform 90ms linear"
+                : "transform 420ms cubic-bezier(0.34, 1.45, 0.5, 1)",
               opacity: SECTIONS.some((s) => s.id === section) ? 1 : 0,
             }}
           >
-            <span className="mx-auto block h-full w-full max-w-12 rounded-xl bg-accent" />
+            <span className="mx-auto block h-full w-full max-w-[60px] rounded-2xl bg-accent" />
           </span>
           {SECTIONS.map((s) => {
             const Icon = s.icon;
@@ -238,14 +269,14 @@ function AppPage() {
                 key={s.id}
                 onClick={() => (navDrag.consumeClick() ? undefined : setSection(s.id))}
                 aria-label={s.label}
-                className={`relative flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 transition-colors ${
+                className={`relative flex min-w-0 flex-1 flex-col items-center gap-0.5 pb-1 pt-1.5 transition-colors ${
                   active ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
-                <span className="inline-flex h-8 w-full max-w-12 items-center justify-center">
-                  <Icon className="h-5 w-5" />
+                <span className="inline-flex h-11 w-full max-w-[60px] items-center justify-center">
+                  <Icon className="h-[26px] w-[26px]" />
                 </span>
-                <span className="truncate text-[10px] font-medium leading-none">{s.label}</span>
+                <span className="truncate text-[11px] font-medium leading-none">{s.label}</span>
               </button>
             );
           })}
