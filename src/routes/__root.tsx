@@ -19,7 +19,7 @@ const OG_IMAGE = `${import.meta.env.VITE_SITE_URL ?? ""}/og-image.jpg`;
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-app items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="font-serif text-7xl text-foreground">404</h1>
         <p className="mt-3 text-sm text-muted-foreground">Страница не найдена.</p>
@@ -40,7 +40,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     console.error(error);
   }, [error]);
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-app items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold text-foreground">Что-то пошло не так</h1>
         <p className="mt-2 text-sm text-muted-foreground">Попробуйте обновить страницу.</p>

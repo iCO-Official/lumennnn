@@ -66,7 +66,7 @@ const features = [
 
 function Landing() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+    <div className="relative min-h-app overflow-hidden bg-background text-foreground">
       {/* Background grid */}
       <div className="pointer-events-none absolute inset-0 bg-grid opacity-60" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-glow" />
