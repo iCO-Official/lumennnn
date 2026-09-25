@@ -118,9 +118,6 @@ function AuthPage() {
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 bg-grid opacity-50" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[500px] bg-glow" />
-
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 pt-6 sm:px-8">
         <Link
           to={hasSession ? "/app" : "/"}

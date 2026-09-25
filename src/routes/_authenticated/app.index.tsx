@@ -38,9 +38,35 @@ const SECTIONS: {
   { id: "ai", label: "AI", icon: Sparkles },
 ];
 
+// Tab order, so switching slides in the direction of the tapped tab.
+const ORDER: Record<Section, number> = {
+  home: 0,
+  sleep: 0.5,
+  metrics: 0.5,
+  plans: 1,
+  routine: 2,
+  journal: 3,
+  ai: 4,
+};
+
+const pageVariants = {
+  enter: (dir: number) => ({ opacity: 0, x: dir * 28 }),
+  center: { opacity: 1, x: 0 },
+  exit: (dir: number) => ({ opacity: 0, x: dir * -28 }),
+};
+
 function AppPage() {
-  const [section, setSection] = useState<Section>("home");
+  const [[section, direction], setPage] = useState<[Section, number]>(["home", 0]);
   const [name, setName] = useState("");
+
+  function setSection(next: Section) {
+    if (next === section) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    setPage([next, Math.sign(ORDER[next] - ORDER[section])]);
+    window.scrollTo({ top: 0 });
+  }
 
   useEffect(() => {
     (async () => {
@@ -59,9 +85,6 @@ function AppPage() {
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 bg-grid opacity-30" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[400px] bg-glow" />
-
       {section !== "ai" && (
         <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-2 sm:px-8 sm:pt-4">
           <LumenLogo />
@@ -70,9 +93,9 @@ function AppPage() {
             <Link
               to="/app/settings"
               aria-label="Настройки"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background/40 backdrop-blur transition-colors hover:bg-accent active:scale-95"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-card transition-colors hover:bg-accent"
             >
-              <SettingsIcon className="h-5 w-5" />
+              <SettingsIcon className="h-4 w-4" />
             </Link>
           </div>
         </header>
@@ -93,13 +116,18 @@ function AppPage() {
           </div>
         )}
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false} custom={direction}>
           <motion.div
             key={section}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
+            custom={direction}
+            variants={pageVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{
+              x: { type: "spring", damping: 32, stiffness: 420 },
+              opacity: { duration: 0.16 },
+            }}
           >
             {section === "home" && <HomeSection onGo={setSection} />}
             {section === "plans" && <PlannerPlansSection />}
@@ -113,7 +141,7 @@ function AppPage() {
       </main>
 
       {/* Bottom navigation */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-2xl backdrop-saturate-150">
         <div className="mx-auto flex max-w-4xl items-stretch justify-between px-2">
           {SECTIONS.map((s) => {
             const Icon = s.icon;
@@ -127,10 +155,15 @@ function AppPage() {
                   active ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
-                <span
-                  className={`relative inline-flex h-8 w-full max-w-12 items-center justify-center rounded-xl ${active ? "bg-accent" : ""}`}
-                >
-                  <Icon className="h-5 w-5" />
+                <span className="relative inline-flex h-8 w-full max-w-12 items-center justify-center">
+                  {active && (
+                    <motion.span
+                      layoutId="nav-pill"
+                      className="absolute inset-0 rounded-xl bg-accent"
+                      transition={{ type: "spring", damping: 30, stiffness: 400 }}
+                    />
+                  )}
+                  <Icon className="relative h-5 w-5" />
                 </span>
                 <span className="truncate text-[10px] font-medium leading-none">{s.label}</span>
               </button>

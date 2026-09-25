@@ -10,6 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import { MotionConfig } from "motion/react";
 import { ThemeProvider } from "../components/theme-provider";
 import { Toaster } from "../components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -150,7 +151,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <Outlet />
+        <MotionConfig reducedMotion="user">
+          <Outlet />
+        </MotionConfig>
         <Toaster />
       </ThemeProvider>
     </QueryClientProvider>
