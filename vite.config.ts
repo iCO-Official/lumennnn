@@ -7,10 +7,9 @@ import { nitro } from "nitro/vite";
 
 // Publishable (safe for the browser) backend config. Used as a fallback when
 // VITE_SUPABASE_* are not set in .env / the hosting environment.
-const SUPABASE_URL = "https://gmpjofmjibecusdcggyg.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdtcGpvZm1qaWJlY3VzZGNnZ3lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjM4MDUsImV4cCI6MjA5NjQzOTgwNX0.WyXxwwjJqyIC3u91kVED4lMogTsNLF5-uKnkQ6J2O1k";
-const SUPABASE_PROJECT_ID = "gmpjofmjibecusdcggyg";
+const SUPABASE_URL = "https://hdzoutvrzblwhyfcoqwp.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_SBPAycFoZT9zEDIdjr5NPQ_NQRtPxSC";
+const SUPABASE_PROJECT_ID = "hdzoutvrzblwhyfcoqwp";
 
 export default defineConfig(({ command, mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ""), ...process.env };

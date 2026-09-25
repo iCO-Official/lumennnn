@@ -26,7 +26,7 @@ npm start              # Node-сервер из .output/
 
 См. `.env.example`.
 
-- `VITE_SUPABASE_*` — URL и публичный ключ Supabase. Без них используется текущий проект.
+- `VITE_SUPABASE_*` — URL и публичный ключ Supabase. Без них используется проект, прописанный в `vite.config.ts`.
 - `AI_API_KEY` — ключ Google Gemini (бесплатно: https://aistudio.google.com/apikey).
   `AI_MODEL` (по умолчанию `gemini-flash-latest`) и `AI_API_URL` позволяют взять другую модель
   или любой OpenAI-совместимый API.
