@@ -9,7 +9,7 @@ import { PromptInput, PromptInputBody, PromptInputButton, PromptInputFooter, Pro
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { CHAT_IMAGES_BUCKET, chatWithAi, resetAiChat, type AiProposal } from "@/lib/ai.functions";
-import { createTask, updateRoutineFuture, updateTaskInstance } from "@/lib/planner";
+import { createTask, localIso, updateRoutineFuture, updateTaskInstance } from "@/lib/planner";
 
 type AiMsg = { id?: string; role: "user" | "assistant"; content: string; imageUrl?: string | null; proposal?: AiProposal | null };
 type PickedImage = { blob: Blob; previewUrl: string };
@@ -102,7 +102,7 @@ export function LumenAiChat() {
     setSending(true);
     try {
       const imagePath = picked ? await uploadImage(picked.blob) : null;
-      const result = await send({ data: { message: value, imagePath } });
+      const result = await send({ data: { message: value, imagePath, today: localIso() } });
       setMessages((current) => [...current, { role: "assistant", content: result.reply, proposal: result.proposal ?? null }]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось получить ответ");

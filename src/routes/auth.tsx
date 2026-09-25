@@ -99,7 +99,7 @@ function AuthPage() {
     }
   }
 
-  async function handleOAuth(provider: "google" | "apple") {
+  async function handleOAuth(provider: "google") {
     setOauthLoading(provider);
     try {
       // Redirects to the provider; Supabase restores the session on return to /app.
@@ -156,15 +156,6 @@ function AuthPage() {
             >
               {oauthLoading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
               Продолжить с Google
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOAuth("apple")}
-              disabled={!!oauthLoading}
-              className="inline-flex h-11 items-center justify-center gap-3 rounded-full border border-border bg-background text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
-            >
-              {oauthLoading === "apple" ? <Loader2 className="h-4 w-4 animate-spin" /> : <AppleIcon />}
-              Продолжить с Apple
             </button>
           </div>
 
@@ -276,14 +267,6 @@ function GoogleIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
       <path fill="#FFC107" d="M21.8 10.4H12v3.5h5.6c-.5 2.5-2.6 4-5.6 4-3.3 0-6-2.7-6-6s2.7-6 6-6c1.5 0 2.9.6 4 1.5l2.5-2.5C16.9 3.3 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c5.5 0 9.6-3.9 9.6-9.4 0-.6 0-1.2-.2-1.8z" />
-    </svg>
-  );
-}
-
-function AppleIcon() {
-  return (
-    <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24" aria-hidden>
-      <path d="M16.4 12.7c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2.1-.9-3.4-.9-1.8 0-3.4 1-4.3 2.6-1.8 3.2-.5 7.9 1.3 10.5.9 1.3 1.9 2.7 3.3 2.6 1.3-.1 1.8-.8 3.4-.8s2 .8 3.4.8c1.4 0 2.3-1.3 3.2-2.5.7-1 1.3-2 1.6-3.1-3.1-1.2-3.1-3-3.1-3.2zM13.8 4.7c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.5-.7.8-1.3 2-1.1 3.2 1.2.1 2.3-.6 3-1.4z" />
     </svg>
   );
 }

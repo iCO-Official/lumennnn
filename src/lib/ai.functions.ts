@@ -59,6 +59,20 @@ async function rawGateway(messages: Msg[], tools?: unknown[]): Promise<GwChoice[
 
 export const CHAT_IMAGES_BUCKET = "chat-images";
 
+// The server runs in UTC and doesn't know the user's timezone, so the client
+// sends its local date (YYYY-MM-DD). Falls back to the server date.
+const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish();
+
+function dayInfo(today?: string | null) {
+  const iso = today ?? new Date().toISOString().slice(0, 10);
+  const minusDays = (days: number) => {
+    const date = new Date(`${iso}T12:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - days);
+    return date.toISOString().slice(0, 10);
+  };
+  return { iso, dow: new Date(`${iso}T12:00:00Z`).getUTCDay(), minusDays };
+}
+
 function toBase64(bytes: Uint8Array) {
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -118,7 +132,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
-      .object({ message: z.string().max(4000), imagePath: z.string().max(300).nullish() })
+      .object({ message: z.string().max(4000), imagePath: z.string().max(300).nullish(), today: localDate })
       .refine((v) => v.message.trim() || v.imagePath, "Пустое сообщение")
       .parse(d),
   )
@@ -136,7 +150,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
         .from("ai_messages")
         .select("role, content")
         .eq("user_id", userId)
-        .order("created_at", { ascending: true })
+        .order("created_at", { ascending: false })
         .limit(40),
       supabase.from("gaming_stats").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("custom_metrics").select("name, unit").eq("user_id", userId),
@@ -151,9 +165,9 @@ export const chatWithAi = createServerFn({ method: "POST" })
     );
 
     const messages: Msg[] = [
-      { role: "system", content: system + `\n\nСегодня ${new Date().toISOString().slice(0, 10)}.\n` + ROUTINE_TOOLS_HINT },
+      { role: "system", content: system + `\n\nСегодня ${dayInfo(data.today).iso}.\n` + ROUTINE_TOOLS_HINT },
       // Photo-only messages are stored with empty text; old photos are not re-sent to the model.
-      ...(history ?? []).map((m) => ({ role: m.role, content: m.content || "[фото]" }) as Msg),
+      ...(history ?? []).reverse().map((m) => ({ role: m.role, content: m.content || "[фото]" }) as Msg),
       {
         role: "user",
         content: imagePath
@@ -308,12 +322,13 @@ async function runRoutineTool(supabase: SB, userId: string, name: string, args: 
 
 export const dailyBrief = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: unknown) => z.object({ today: localDate }).parse(d ?? {}))
+  .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const today = new Date();
-    const dow = today.getDay();
-    const todayIso = today.toISOString().slice(0, 10);
-    const since = new Date(today.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+    const day = dayInfo(data.today);
+    const dow = day.dow;
+    const todayIso = day.iso;
+    const since = day.minusDays(7);
 
     const [profile, routines, tasks, sleep, journal] = await Promise.all([
       supabase.from("profiles").select("display_name, age, gender, interests").eq("id", userId).maybeSingle(),
@@ -373,11 +388,10 @@ export const resetAiChat = createServerFn({ method: "POST" })
 
 export const analyzeWeek = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: unknown) => z.object({ today: localDate }).parse(d ?? {}))
+  .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const since = new Date();
-    since.setDate(since.getDate() - 7);
-    const sinceIso = since.toISOString().slice(0, 10);
+    const sinceIso = dayInfo(data.today).minusDays(7);
 
     const [tasks, sleep, workouts, health, journal, profile, gaming, metrics, metricLogs] = await Promise.all([
       supabase.from("tasks").select("title, scope, completed, scheduled_for").eq("user_id", userId).gte("scheduled_for", sinceIso),
