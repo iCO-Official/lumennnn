@@ -256,6 +256,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      push_subscriptions: {
+        Row: {
+          auth: string;
+          created_at: string;
+          endpoint: string;
+          id: string;
+          p256dh: string;
+          test_requested: boolean;
+          timezone: string;
+          user_id: string;
+        };
+        Insert: {
+          auth: string;
+          created_at?: string;
+          endpoint: string;
+          id?: string;
+          p256dh: string;
+          test_requested?: boolean;
+          timezone?: string;
+          user_id: string;
+        };
+        Update: {
+          auth?: string;
+          created_at?: string;
+          endpoint?: string;
+          id?: string;
+          p256dh?: string;
+          test_requested?: boolean;
+          timezone?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           age: number | null;
@@ -294,44 +327,6 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
-      };
-      routine_logs: {
-        Row: {
-          created_at: string;
-          done: boolean;
-          id: string;
-          log_date: string;
-          routine_id: string;
-          updated_at: string;
-          user_id: string;
-        };
-        Insert: {
-          created_at?: string;
-          done?: boolean;
-          id?: string;
-          log_date?: string;
-          routine_id: string;
-          updated_at?: string;
-          user_id: string;
-        };
-        Update: {
-          created_at?: string;
-          done?: boolean;
-          id?: string;
-          log_date?: string;
-          routine_id?: string;
-          updated_at?: string;
-          user_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "routine_logs_routine_id_fkey";
-            columns: ["routine_id"];
-            isOneToOne: false;
-            referencedRelation: "routines";
-            referencedColumns: ["id"];
-          },
-        ];
       };
       routines: {
         Row: {
@@ -432,6 +427,9 @@ export type Database = {
           title: string;
           updated_at: string;
           user_id: string;
+          detached: boolean;
+          occurrence_date: string | null;
+          skipped: boolean;
         };
         Insert: {
           completed?: boolean;
@@ -447,6 +445,9 @@ export type Database = {
           title: string;
           updated_at?: string;
           user_id: string;
+          detached?: boolean;
+          occurrence_date?: string | null;
+          skipped?: boolean;
         };
         Update: {
           completed?: boolean;
@@ -462,6 +463,9 @@ export type Database = {
           title?: string;
           updated_at?: string;
           user_id?: string;
+          detached?: boolean;
+          occurrence_date?: string | null;
+          skipped?: boolean;
         };
         Relationships: [
           {
@@ -517,7 +521,30 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      push_due: {
+        Args: { p_secret: string };
+        Returns: {
+          auth: string;
+          body: string;
+          endpoint: string;
+          p256dh: string;
+          tag: string;
+          title: string;
+        }[];
+      };
+      push_keys: {
+        Args: { p_secret: string };
+        Returns: { vapid_private: string | null; vapid_public: string | null }[];
+      };
+      push_public_key: { Args: never; Returns: string | null };
+      push_remove_subscription: {
+        Args: { p_endpoint: string; p_secret: string };
+        Returns: undefined;
+      };
+      push_set_keys: {
+        Args: { p_private: string; p_public: string; p_secret: string };
+        Returns: undefined;
+      };
     };
     Enums: {
       [_ in never]: never;

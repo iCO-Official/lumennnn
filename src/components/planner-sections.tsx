@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext,
   PointerSensor,
@@ -16,23 +17,26 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, GripVertical, Pencil, Plus, Repeat, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import {
   addDays,
+  createRoutine,
   createTask,
-  ensureRoutineInstances,
+  endRoutine,
   loadRoutines,
   loadTasks,
   localIso,
   removeTask,
+  setRoutineActive,
   updateRoutineFuture,
   updateTaskInstance,
   type PlannerRoutine,
   type PlannerTask,
 } from "@/lib/planner";
+import { parseScheduleLines } from "@/lib/routine-schedule";
 
 const SHORT_DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
@@ -321,7 +325,11 @@ function TaskGroup({
             >
               {task.title}
             </p>
-            {task.routine_id && <span className="text-[10px] text-muted-foreground">Рутина</span>}
+            {task.routine_id && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Repeat className="h-3 w-3" /> Рутина
+              </span>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -439,19 +447,26 @@ function TaskEditor({
   const [repeat, setRepeat] = useState<"none" | "daily" | "custom">("none");
   const [days, setDays] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<"one" | "list">("one");
+  const [listText, setListText] = useState("");
+  const listItems = mode === "list" ? parseScheduleLines(listText) : [];
+  const seriesEdit = !!task?.routine_id && editAllFuture;
+  const canSave =
+    (mode === "list" ? listItems.length > 0 : !!title.trim()) &&
+    !(repeat === "custom" && !days.length);
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!canSave) return;
     setSaving(true);
     try {
       if (task) {
         if (task.routine_id && editAllFuture)
-          await updateRoutineFuture(task.routine_id, task.scheduled_for, {
+          await updateRoutineFuture(task.routine_id, task.occurrence_date ?? task.scheduled_for, {
             title: title.trim(),
             time_of_day: time || null,
           });
         else
-          await updateTaskInstance(task.id, {
+          await updateTaskInstance(task, {
             title: title.trim(),
             scheduled_for: date,
             scheduled_time: time || null,
@@ -459,7 +474,10 @@ function TaskEditor({
       } else {
         const repeatDays =
           repeat === "daily" ? [0, 1, 2, 3, 4, 5, 6] : repeat === "custom" ? days : [];
-        await createTask({ title: title.trim(), date, time: time || null, repeatDays });
+        const items = mode === "list" ? listItems : [{ title: title.trim(), time: time || null }];
+        for (const [index, item] of items.entries())
+          await createTask({ ...item, date, repeatDays, sortOrder: index });
+        if (items.length > 1) toast.success(`Добавлено: ${items.length}`);
       }
       onSaved();
     } catch (error) {
@@ -468,45 +486,89 @@ function TaskEditor({
       setSaving(false);
     }
   }
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm sm:items-center sm:justify-center">
       <form
         onSubmit={save}
         className="w-full border-t border-border bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-lg sm:border"
       >
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-serif text-2xl">{task ? "Изменить задачу" : "Новая задача"}</h3>
+          <h3 className="font-serif text-2xl">
+            {task ? (seriesEdit ? "Изменить рутину" : "Изменить задачу") : "Новые дела"}
+          </h3>
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
             <X />
           </Button>
         </div>
         <div className="space-y-3">
-          <input
-            autoFocus
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название"
-            className="h-12 w-full rounded-md border border-input bg-card px-3 text-base outline-none focus:border-foreground"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <label className="space-y-1 text-xs text-muted-foreground">
-              Дата
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+          {!task && (
+            <div className="grid grid-cols-2 rounded-full border border-border p-1 text-sm">
+              {(
+                [
+                  ["one", "Одно дело"],
+                  ["list", "Списком"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  type="button"
+                  key={id}
+                  onClick={() => setMode(id)}
+                  className={`h-9 rounded-full ${mode === id ? "bg-foreground text-background" : "text-muted-foreground"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {mode === "list" ? (
+            <div>
+              <textarea
+                autoFocus
+                value={listText}
+                onChange={(e) => setListText(e.target.value)}
+                rows={6}
+                placeholder={"06:00 Подъём\n06:05 Стакан воды\n06:10 Душ\nКупить тетрадь"}
+                className="w-full rounded-md border border-input bg-card px-3 py-2 text-base outline-none focus:border-foreground"
               />
-            </label>
-            <label className="space-y-1 text-xs text-muted-foreground">
-              Время
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
-              />
-            </label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                По строке на дело, время в начале — по желанию.
+                {listItems.length > 0 && ` Дел: ${listItems.length}.`}
+              </p>
+            </div>
+          ) : (
+            <input
+              autoFocus
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Название"
+              className="h-12 w-full rounded-md border border-input bg-card px-3 text-base outline-none focus:border-foreground"
+            />
+          )}
+          <div
+            className={`grid gap-3 ${mode === "list" || seriesEdit ? "grid-cols-1" : "grid-cols-2"}`}
+          >
+            {!seriesEdit && (
+              <label className="space-y-1 text-xs text-muted-foreground">
+                {repeat === "none" ? "Дата" : "Начиная с"}
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+                />
+              </label>
+            )}
+            {mode === "one" && (
+              <label className="space-y-1 text-xs text-muted-foreground">
+                Время
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+                />
+              </label>
+            )}
           </div>
           {!task && (
             <>
@@ -526,14 +588,16 @@ function TaskEditor({
             </>
           )}
         </div>
-        <Button
-          className="mt-5 h-12 w-full rounded-full"
-          disabled={saving || !title.trim() || (repeat === "custom" && !days.length)}
-        >
-          {saving ? "Сохраняю…" : "Сохранить"}
+        <Button className="mt-5 h-12 w-full rounded-full" disabled={saving || !canSave}>
+          {saving
+            ? "Сохраняю…"
+            : mode === "list" && listItems.length > 1
+              ? `Добавить ${listItems.length}`
+              : "Сохранить"}
         </Button>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -548,26 +612,29 @@ function ScopeDialog({
   onToday: () => void;
   onFuture: () => void;
 }) {
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end bg-background/70 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-5">
         <h3 className="font-serif text-2xl">
           {action.mode === "edit" ? "Что изменить?" : "Что удалить?"}
         </h3>
-        <p className="mt-2 text-sm text-muted-foreground">Прошедшие дни останутся без изменений.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Это дело из рутины. Прошедшие и выполненные дни не изменятся.
+        </p>
         <div className="mt-5 space-y-2">
           <Button className="h-11 w-full" onClick={onToday}>
-            Только сегодня
+            {action.mode === "edit" ? "Только этот день" : "Пропустить этот день"}
           </Button>
           <Button className="h-11 w-full" variant="secondary" onClick={onFuture}>
-            Все будущие
+            {action.mode === "edit" ? "Этот и следующие" : "Удалить рутину с этого дня"}
           </Button>
           <Button className="h-11 w-full" variant="ghost" onClick={onCancel}>
             Отмена
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -629,24 +696,21 @@ export function RoutinesSection() {
     setRoutines((items) =>
       items.map((item) => (item.id === routine.id ? { ...item, active } : item)),
     );
-    const { error } = await supabase.from("routines").update({ active }).eq("id", routine.id);
-    if (error) toast.error(error.message);
+    try {
+      await setRoutineActive(routine.id, active);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      void refresh();
+    }
   }
   async function remove(routine: PlannerRoutine) {
-    if (!confirm(`Удалить «${routine.title}» и все будущие экземпляры?`)) return;
-    const today = localIso();
-    const { error } = await supabase
-      .from("routines")
-      .update({ active: false, ends_on: addDays(today, -1) })
-      .eq("id", routine.id);
-    if (!error)
-      await supabase
-        .from("tasks")
-        .delete()
-        .eq("routine_id", routine.id)
-        .gte("scheduled_for", today);
-    if (error) toast.error(error.message);
-    else void refresh();
+    if (!confirm(`Удалить «${routine.title}»? Выполненные дни останутся в истории.`)) return;
+    try {
+      await endRoutine(routine, localIso());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить");
+    }
+    void refresh();
   }
   return (
     <section className="space-y-5">
@@ -695,7 +759,7 @@ export function RoutinesSection() {
             void refresh();
           }}
         />
-      )}{" "}
+      )}
     </section>
   );
 }
@@ -784,19 +848,12 @@ function RoutineEditor({
           weekdays: days,
         });
       } else {
-        const { data: u } = await supabase.auth.getUser();
-        if (!u.user) throw new Error("Войди в аккаунт");
-        const { error } = await supabase.from("routines").insert({
-          user_id: u.user.id,
+        await createRoutine({
           title: title.trim(),
-          time_of_day: time || null,
+          time: time || null,
           weekdays: days,
-          starts_on: localIso(),
-          day_of_week: days.length === 1 ? days[0] : null,
-          sort_order: 999,
+          startsOn: localIso(),
         });
-        if (error) throw error;
-        await ensureRoutineInstances(localIso(), addDays(localIso(), 31));
       }
       onSaved();
     } catch (error) {
@@ -805,7 +862,7 @@ function RoutineEditor({
       setSaving(false);
     }
   }
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm sm:items-center sm:justify-center">
       <form
         onSubmit={save}
@@ -843,6 +900,7 @@ function RoutineEditor({
           {saving ? "Сохраняю…" : "Сохранить"}
         </Button>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
