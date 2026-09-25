@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   DndContext,
   PointerSensor,
@@ -17,9 +16,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { AnimatePresence, motion } from "motion/react";
 import { Check, GripVertical, Pencil, Plus, Repeat, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { AppSheet } from "@/components/ui/app-sheet";
 import { supabase } from "@/integrations/supabase/client";
 import {
   addDays,
@@ -71,6 +72,11 @@ export function PlansSection() {
     const to = localIso(new Date(date.getFullYear(), date.getMonth() + 1, 0));
     return { from, to };
   }, [selectedDate, view]);
+
+  const closeEditor = () => {
+    setAdding(false);
+    setEditing(null);
+  };
 
   async function refresh() {
     setLoading(true);
@@ -194,9 +200,11 @@ export function PlansSection() {
           </strong>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-secondary">
-          <div
-            className="h-full bg-foreground transition-[width]"
-            style={{ width: `${percent}%` }}
+          <motion.div
+            className="h-full rounded-full bg-foreground"
+            initial={false}
+            animate={{ width: `${percent}%` }}
+            transition={{ type: "spring", damping: 26, stiffness: 180 }}
           />
         </div>
       </div>
@@ -212,44 +220,43 @@ export function PlansSection() {
         />
       )}
 
-      {(adding || editing) && (
+      <AppSheet open={adding || !!editing} onClose={closeEditor}>
         <TaskEditor
+          key={editing?.id ?? "new"}
           task={editing}
           editAllFuture={editAllFuture}
           defaultDate={selectedDate}
-          onClose={() => {
-            setAdding(false);
-            setEditing(null);
-          }}
+          onClose={closeEditor}
           onSaved={() => {
-            setAdding(false);
-            setEditing(null);
+            closeEditor();
             void refresh();
           }}
         />
-      )}
-      {scopeAction && (
-        <ScopeDialog
-          action={scopeAction}
-          onCancel={() => setScopeAction(null)}
-          onToday={() => {
-            if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, false);
-            else {
-              setEditAllFuture(false);
-              setEditing(scopeAction.task);
-              setScopeAction(null);
-            }
-          }}
-          onFuture={() => {
-            if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, true);
-            else {
-              setEditAllFuture(true);
-              setEditing(scopeAction.task);
-              setScopeAction(null);
-            }
-          }}
-        />
-      )}
+      </AppSheet>
+      <AppSheet open={!!scopeAction} onClose={() => setScopeAction(null)}>
+        {scopeAction && (
+          <ScopeDialog
+            action={scopeAction}
+            onCancel={() => setScopeAction(null)}
+            onToday={() => {
+              if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, false);
+              else {
+                setEditAllFuture(false);
+                setEditing(scopeAction.task);
+                setScopeAction(null);
+              }
+            }}
+            onFuture={() => {
+              if (scopeAction.mode === "delete") void deleteTask(scopeAction.task, true);
+              else {
+                setEditAllFuture(true);
+                setEditing(scopeAction.task);
+                setScopeAction(null);
+              }
+            }}
+          />
+        )}
+      </AppSheet>
     </section>
   );
 }
@@ -277,7 +284,7 @@ function TaskList({
     .sort((a, b) => a.sort_order - b.sort_order);
   if (!tasks.length)
     return (
-      <div className="border-y border-border py-12 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl bg-card py-12 text-center text-sm text-muted-foreground">
         На этот день ничего не запланировано
       </div>
     );
@@ -286,7 +293,9 @@ function TaskList({
       <TaskGroup tasks={timed} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
       {untimed.length > 0 && (
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase text-muted-foreground">Без времени</h3>
+          <h3 className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Без времени
+          </h3>
           <TaskGroup tasks={untimed} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
         </div>
       )}
@@ -306,49 +315,73 @@ function TaskGroup({
   onDelete: (task: PlannerTask) => void;
 }) {
   return (
-    <ul className="divide-y divide-border border-y border-border">
-      {tasks.map((task) => (
-        <li key={task.id} className="flex min-h-14 items-center gap-3 py-2">
-          <button
-            onClick={() => onToggle(task)}
-            aria-label={task.completed ? "Вернуть задачу" : "Выполнить задачу"}
-            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${task.completed ? "border-foreground bg-foreground text-background" : "border-muted-foreground"}`}
+    <ul className="overflow-hidden rounded-2xl bg-card">
+      <AnimatePresence initial={false}>
+        {tasks.map((task) => (
+          <motion.li
+            key={task.id}
+            layout
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ type: "spring", damping: 30, stiffness: 320 }}
+            className="border-b border-border last:border-b-0"
           >
-            {task.completed && <Check className="h-4 w-4" />}
-          </button>
-          <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
-            {task.scheduled_time?.slice(0, 5) ?? "—"}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p
-              className={`break-words text-sm ${task.completed ? "text-muted-foreground line-through" : ""}`}
-            >
-              {task.title}
-            </p>
-            {task.routine_id && (
-              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                <Repeat className="h-3 w-3" /> Рутина
-              </span>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onEdit(task)}
-            aria-label="Редактировать"
-          >
-            <Pencil />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onDelete(task)}
-            aria-label="Удалить"
-          >
-            <Trash2 />
-          </Button>
-        </li>
-      ))}
+            <div className="flex min-h-14 items-center gap-3 py-2 pl-4 pr-1">
+              <motion.button
+                onClick={() => onToggle(task)}
+                whileTap={{ scale: 0.8 }}
+                aria-label={task.completed ? "Вернуть задачу" : "Выполнить задачу"}
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${task.completed ? "border-foreground bg-foreground text-background" : "border-muted-foreground/60"}`}
+              >
+                <AnimatePresence initial={false}>
+                  {task.completed && (
+                    <motion.span
+                      initial={{ scale: 0, rotate: -30 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      exit={{ scale: 0 }}
+                      transition={{ type: "spring", damping: 14, stiffness: 420 }}
+                    >
+                      <Check className="h-4 w-4" strokeWidth={3} />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </motion.button>
+              <button
+                type="button"
+                onClick={() => onEdit(task)}
+                aria-label={`Изменить «${task.title}»`}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              >
+                <span className="w-11 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                  {task.scheduled_time?.slice(0, 5) ?? "—"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={`block break-words text-[15px] transition-colors duration-300 ${task.completed ? "text-muted-foreground line-through decoration-muted-foreground/60" : ""}`}
+                  >
+                    {task.title}
+                  </span>
+                  {task.routine_id && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Repeat className="h-3 w-3" /> Рутина
+                    </span>
+                  )}
+                </span>
+              </button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground/70"
+                onClick={() => onDelete(task)}
+                aria-label="Удалить"
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          </motion.li>
+        ))}
+      </AnimatePresence>
     </ul>
   );
 }
@@ -486,118 +519,110 @@ function TaskEditor({
       setSaving(false);
     }
   }
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm sm:items-center sm:justify-center">
-      <form
-        onSubmit={save}
-        className="w-full border-t border-border bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-lg sm:border"
-      >
-        <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-serif text-2xl">
-            {task ? (seriesEdit ? "Изменить рутину" : "Изменить задачу") : "Новые дела"}
-          </h3>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
-            <X />
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {!task && (
-            <div className="grid grid-cols-2 rounded-full border border-border p-1 text-sm">
-              {(
-                [
-                  ["one", "Одно дело"],
-                  ["list", "Списком"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  type="button"
-                  key={id}
-                  onClick={() => setMode(id)}
-                  className={`h-9 rounded-full ${mode === id ? "bg-foreground text-background" : "text-muted-foreground"}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {mode === "list" ? (
-            <div>
-              <textarea
-                autoFocus
-                value={listText}
-                onChange={(e) => setListText(e.target.value)}
-                rows={6}
-                placeholder={"06:00 Подъём\n06:05 Стакан воды\n06:10 Душ\nКупить тетрадь"}
-                className="w-full rounded-md border border-input bg-card px-3 py-2 text-base outline-none focus:border-foreground"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                По строке на дело, время в начале — по желанию.
-                {listItems.length > 0 && ` Дел: ${listItems.length}.`}
-              </p>
-            </div>
-          ) : (
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Название"
-              className="h-12 w-full rounded-md border border-input bg-card px-3 text-base outline-none focus:border-foreground"
-            />
-          )}
-          <div
-            className={`grid gap-3 ${mode === "list" || seriesEdit ? "grid-cols-1" : "grid-cols-2"}`}
-          >
-            {!seriesEdit && (
-              <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
-                {repeat === "none" ? "Дата" : "Начиная с"}
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
-                />
-              </label>
-            )}
-            {mode === "one" && (
-              <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
-                Время
-                <input
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
-                />
-              </label>
-            )}
-          </div>
-          {!task && (
-            <>
-              <label className="block text-xs text-muted-foreground">
-                Повторение
-                <select
-                  value={repeat}
-                  onChange={(e) => setRepeat(e.target.value as typeof repeat)}
-                  className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
-                >
-                  <option value="none">Нет</option>
-                  <option value="daily">Каждый день</option>
-                  <option value="custom">Выбранные дни</option>
-                </select>
-              </label>
-              {repeat === "custom" && <DayPicker value={days} onChange={setDays} />}
-            </>
-          )}
-        </div>
-        <Button className="mt-5 h-12 w-full rounded-full" disabled={saving || !canSave}>
-          {saving
-            ? "Сохраняю…"
-            : mode === "list" && listItems.length > 1
-              ? `Добавить ${listItems.length}`
-              : "Сохранить"}
+  return (
+    <form onSubmit={save}>
+      <div className="mb-5 flex items-center justify-between">
+        <h3 className="font-serif text-2xl">
+          {task ? (seriesEdit ? "Изменить рутину" : "Изменить задачу") : "Новые дела"}
+        </h3>
+        <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+          <X />
         </Button>
-      </form>
-    </div>,
-    document.body,
+      </div>
+      <div className="space-y-3">
+        {!task && (
+          <div className="grid grid-cols-2 rounded-full border border-border p-1 text-sm">
+            {(
+              [
+                ["one", "Одно дело"],
+                ["list", "Списком"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                type="button"
+                key={id}
+                onClick={() => setMode(id)}
+                className={`h-9 rounded-full ${mode === id ? "bg-foreground text-background" : "text-muted-foreground"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        {mode === "list" ? (
+          <div>
+            <textarea
+              value={listText}
+              onChange={(e) => setListText(e.target.value)}
+              rows={6}
+              placeholder={"06:00 Подъём\n06:05 Стакан воды\n06:10 Душ\nКупить тетрадь"}
+              className="w-full rounded-md border border-input bg-card px-3 py-2 text-base outline-none focus:border-foreground"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              По строке на дело, время в начале — по желанию.
+              {listItems.length > 0 && ` Дел: ${listItems.length}.`}
+            </p>
+          </div>
+        ) : (
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Название"
+            className="h-12 w-full rounded-md border border-input bg-card px-3 text-base outline-none focus:border-foreground"
+          />
+        )}
+        <div
+          className={`grid gap-3 ${mode === "list" || seriesEdit ? "grid-cols-1" : "grid-cols-2"}`}
+        >
+          {!seriesEdit && (
+            <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
+              {repeat === "none" ? "Дата" : "Начиная с"}
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+              />
+            </label>
+          )}
+          {mode === "one" && (
+            <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
+              Время
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+              />
+            </label>
+          )}
+        </div>
+        {!task && (
+          <>
+            <label className="block text-xs text-muted-foreground">
+              Повторение
+              <select
+                value={repeat}
+                onChange={(e) => setRepeat(e.target.value as typeof repeat)}
+                className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+              >
+                <option value="none">Нет</option>
+                <option value="daily">Каждый день</option>
+                <option value="custom">Выбранные дни</option>
+              </select>
+            </label>
+            {repeat === "custom" && <DayPicker value={days} onChange={setDays} />}
+          </>
+        )}
+      </div>
+      <Button className="mt-5 h-12 w-full rounded-full" disabled={saving || !canSave}>
+        {saving
+          ? "Сохраняю…"
+          : mode === "list" && listItems.length > 1
+            ? `Добавить ${listItems.length}`
+            : "Сохранить"}
+      </Button>
+    </form>
   );
 }
 
@@ -612,29 +637,26 @@ function ScopeDialog({
   onToday: () => void;
   onFuture: () => void;
 }) {
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end bg-background/70 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-5">
-        <h3 className="font-serif text-2xl">
-          {action.mode === "edit" ? "Что изменить?" : "Что удалить?"}
-        </h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Это дело из рутины. Прошедшие и выполненные дни не изменятся.
-        </p>
-        <div className="mt-5 space-y-2">
-          <Button className="h-11 w-full" onClick={onToday}>
-            {action.mode === "edit" ? "Только этот день" : "Пропустить этот день"}
-          </Button>
-          <Button className="h-11 w-full" variant="secondary" onClick={onFuture}>
-            {action.mode === "edit" ? "Этот и следующие" : "Удалить рутину с этого дня"}
-          </Button>
-          <Button className="h-11 w-full" variant="ghost" onClick={onCancel}>
-            Отмена
-          </Button>
-        </div>
+  return (
+    <div>
+      <h3 className="font-serif text-2xl">
+        {action.mode === "edit" ? "Что изменить?" : "Что удалить?"}
+      </h3>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Это дело из рутины. Прошедшие и выполненные дни не изменятся.
+      </p>
+      <div className="mt-5 space-y-2">
+        <Button className="h-11 w-full" onClick={onToday}>
+          {action.mode === "edit" ? "Только этот день" : "Пропустить этот день"}
+        </Button>
+        <Button className="h-11 w-full" variant="secondary" onClick={onFuture}>
+          {action.mode === "edit" ? "Этот и следующие" : "Удалить рутину с этого дня"}
+        </Button>
+        <Button className="h-11 w-full" variant="ghost" onClick={onCancel}>
+          Отмена
+        </Button>
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 }
 
@@ -679,6 +701,10 @@ export function RoutinesSection() {
   useEffect(() => {
     void refresh();
   }, []);
+  const closeEditor = () => {
+    setCreating(false);
+    setEditing(null);
+  };
   async function dragEnd(event: DragEndEvent) {
     if (!event.over || event.active.id === event.over.id) return;
     const oldIndex = routines.findIndex((r) => r.id === event.active.id);
@@ -726,13 +752,13 @@ export function RoutinesSection() {
       {loading ? (
         <div className="py-16 text-center text-sm text-muted-foreground">Загрузка…</div>
       ) : routines.length === 0 ? (
-        <div className="border-y border-border py-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-2xl bg-card py-12 text-center text-sm text-muted-foreground">
           Добавь первую рутину
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnd}>
           <SortableContext items={routines.map((r) => r.id)} strategy={verticalListSortingStrategy}>
-            <ul className="divide-y divide-border border-y border-border">
+            <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-card">
               {routines.map((routine) => (
                 <RoutineRow
                   key={routine.id}
@@ -746,20 +772,17 @@ export function RoutinesSection() {
           </SortableContext>
         </DndContext>
       )}
-      {(creating || editing) && (
+      <AppSheet open={creating || !!editing} onClose={closeEditor}>
         <RoutineEditor
+          key={editing?.id ?? "new"}
           routine={editing}
-          onClose={() => {
-            setCreating(false);
-            setEditing(null);
-          }}
+          onClose={closeEditor}
           onSaved={() => {
-            setCreating(false);
-            setEditing(null);
+            closeEditor();
             void refresh();
           }}
         />
-      )}
+      </AppSheet>
     </section>
   );
 }
@@ -782,7 +805,7 @@ function RoutineRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex min-h-16 items-center gap-2 bg-background py-2 ${routine.active ? "" : "opacity-45"}`}
+      className={`flex min-h-16 items-center gap-2 bg-card py-2 pr-1 transition-opacity ${routine.active ? "" : "opacity-45"}`}
     >
       <button
         {...attributes}
@@ -862,45 +885,38 @@ function RoutineEditor({
       setSaving(false);
     }
   }
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end bg-background/70 backdrop-blur-sm sm:items-center sm:justify-center">
-      <form
-        onSubmit={save}
-        className="w-full border-t border-border bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-lg sm:border"
-      >
-        <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-serif text-2xl">{routine ? "Изменить рутину" : "Новая рутина"}</h3>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
-            <X />
-          </Button>
-        </div>
-        <div className="space-y-3">
-          <input
-            autoFocus
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название"
-            className="h-12 w-full rounded-md border border-input bg-card px-3 text-base"
-          />
-          <label className="block text-xs text-muted-foreground">
-            Время
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
-            />
-          </label>
-          <DayPicker value={days} onChange={setDays} />
-        </div>
-        <Button
-          className="mt-5 h-12 w-full rounded-full"
-          disabled={saving || !title.trim() || !days.length}
-        >
-          {saving ? "Сохраняю…" : "Сохранить"}
+  return (
+    <form onSubmit={save}>
+      <div className="mb-5 flex items-center justify-between">
+        <h3 className="font-serif text-2xl">{routine ? "Изменить рутину" : "Новая рутина"}</h3>
+        <Button type="button" variant="ghost" size="icon" onClick={onClose}>
+          <X />
         </Button>
-      </form>
-    </div>,
-    document.body,
+      </div>
+      <div className="space-y-3">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Название"
+          className="h-12 w-full rounded-md border border-input bg-card px-3 text-base"
+        />
+        <label className="block text-xs text-muted-foreground">
+          Время
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
+          />
+        </label>
+        <DayPicker value={days} onChange={setDays} />
+      </div>
+      <Button
+        className="mt-5 h-12 w-full rounded-full"
+        disabled={saving || !title.trim() || !days.length}
+      >
+        {saving ? "Сохраняю…" : "Сохранить"}
+      </Button>
+    </form>
   );
 }

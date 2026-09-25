@@ -28,7 +28,6 @@ function MorePage() {
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 bg-grid opacity-30" />
       <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-3 sm:px-8 sm:pt-4">
         <Link
           to="/app"
