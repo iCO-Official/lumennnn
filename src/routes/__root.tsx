@@ -14,6 +14,8 @@ import { ThemeProvider } from "../components/theme-provider";
 import { Toaster } from "../components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+const OG_IMAGE = `${import.meta.env.VITE_SITE_URL ?? ""}/og-image.jpg`;
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -68,8 +70,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "google", content: "notranslate" },
       { name: "twitter:title", content: "Lumen — твой ежедневник и AI-аналитик дня" },
       { name: "twitter:description", content: "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/32a9d61b-2fd0-4e44-825c-b8632e331389" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/32a9d61b-2fd0-4e44-825c-b8632e331389" },
+      { property: "og:image", content: OG_IMAGE },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Lumen — твой день в твоих руках" },
+      { name: "twitter:image", content: OG_IMAGE },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
