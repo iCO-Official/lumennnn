@@ -157,6 +157,46 @@ function AppPage() {
     };
   }, [setSection]);
 
+  // iOS: when the keyboard opens, Safari scrolls the whole page up and often
+  // doesn't scroll it back after the keyboard closes, leaving the fixed tab bar
+  // shifted until the next tap. Snap the page back as soon as the keyboard hides.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let lastHeight = vv.height;
+    const restore = () => {
+      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      window.scrollTo(0, Math.min(window.scrollY, maxScroll));
+    };
+    const onResize = () => {
+      if (vv.height > lastHeight + 80) requestAnimationFrame(restore); // keyboard closed
+      lastHeight = vv.height;
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.matches?.("input, textarea, [contenteditable]")) setTimeout(restore, 60);
+    };
+    vv.addEventListener("resize", onResize);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      document.removeEventListener("focusout", onFocusOut);
+    };
+  }, []);
+
+  // Publish the real tab bar height as --nav-h (the AI chat sits right above it).
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const update = () =>
+      document.documentElement.style.setProperty("--nav-h", `${nav.offsetHeight}px`);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, []);
+
   // Warm up the main tabs in the background so even the first switch is instant.
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -229,7 +269,10 @@ function AppPage() {
       </main>
 
       {/* Bottom navigation */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(6px,calc(env(safe-area-inset-bottom)-14px))]">
+      <nav
+        ref={navRef}
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(6px,calc(env(safe-area-inset-bottom)-14px))]"
+      >
         <div
           className="relative mx-auto flex max-w-4xl touch-none items-stretch justify-between px-2"
           onPointerDown={navDrag.down}

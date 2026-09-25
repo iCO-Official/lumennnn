@@ -213,7 +213,7 @@ export function LumenAiChat() {
   }
 
   return (
-    <section className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] top-0 z-20 mx-auto flex max-w-4xl flex-col bg-background pt-[env(safe-area-inset-top)]">
+    <section className="fixed inset-x-0 bottom-[var(--nav-h,calc(4.5rem+env(safe-area-inset-bottom)))] top-0 z-20 mx-auto flex max-w-4xl flex-col bg-background pt-[env(safe-area-inset-top)]">
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background">
