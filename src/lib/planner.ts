@@ -43,6 +43,12 @@ const TASK_FIELDS =
   "id,title,notes,scheduled_for,scheduled_time,completed,completed_at,routine_id,occurrence_date,detached,sort_order,scope";
 const ROUTINE_FIELDS = "id,title,time_of_day,weekdays,starts_on,ends_on,sort_order,active";
 
+/** Fired after any planner write, so kept-alive tabs (Plans, Routines) refresh. */
+export const PLANNER_CHANGED = "lumen:planner-changed";
+function plannerChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(PLANNER_CHANGED));
+}
+
 // How far ahead routine instances are created after a routine changes.
 const GENERATE_AHEAD_DAYS = 14;
 
@@ -139,6 +145,7 @@ export async function createRoutine(values: {
     .single();
   if (error) throw error;
   await ensureRoutineInstances(values.startsOn, isoAddDays(values.startsOn, GENERATE_AHEAD_DAYS));
+  plannerChanged();
   return data as PlannerRoutine;
 }
 
@@ -168,6 +175,7 @@ export async function createTask(draft: TaskDraft) {
     .select(TASK_FIELDS)
     .single();
   if (error) throw error;
+  plannerChanged();
   return { kind: "task" as const, data: data as PlannerTask };
 }
 
@@ -193,6 +201,7 @@ export async function updateTaskInstance(
     .update(task.routine_id ? { ...values, detached: true } : values)
     .eq("id", task.id);
   if (error) throw error;
+  plannerChanged();
 }
 
 /**
@@ -222,6 +231,7 @@ export async function updateRoutineFuture(
   const from = fromDate > localIso() ? fromDate : localIso();
   await clearUntouchedInstances(routineId, from);
   await ensureRoutineInstances(from, isoAddDays(from, GENERATE_AHEAD_DAYS));
+  plannerChanged();
 }
 
 export async function setRoutineActive(routineId: string, active: boolean) {
@@ -230,6 +240,7 @@ export async function setRoutineActive(routineId: string, active: boolean) {
   const today = localIso();
   if (active) await ensureRoutineInstances(today, isoAddDays(today, GENERATE_AHEAD_DAYS));
   else await clearUntouchedInstances(routineId, today);
+  plannerChanged();
 }
 
 /**
@@ -257,6 +268,7 @@ export async function endRoutine(
           .update({ ends_on: isoAddDays(fromDate, -1) })
           .eq("id", routine.id);
   if (error) throw error;
+  plannerChanged();
 }
 
 export async function removeTask(task: PlannerTask, allFuture: boolean) {
@@ -274,8 +286,10 @@ export async function removeTask(task: PlannerTask, allFuture: boolean) {
     // Keep the row as a "skipped" marker so the generator doesn't bring the day back.
     const { error } = await supabase.from("tasks").update({ skipped: true }).eq("id", task.id);
     if (error) throw error;
+    plannerChanged();
     return;
   }
   const { error } = await supabase.from("tasks").delete().eq("id", task.id);
   if (error) throw error;
+  plannerChanged();
 }

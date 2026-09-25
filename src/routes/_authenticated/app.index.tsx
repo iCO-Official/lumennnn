@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LumenLogo } from "@/components/lumen-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -16,10 +15,21 @@ import {
   PlansSection as PlannerPlansSection,
   RoutinesSection as PlannerRoutinesSection,
 } from "@/components/planner-sections";
-import { LumenAiChat } from "@/components/lumen-ai-chat";
 import { HomeSection, greeting, todayLabel, type Section } from "@/components/app/home";
-import { JournalSection, SleepSection } from "@/components/app/journal";
-import { MetricsSection } from "@/components/app/metrics";
+
+// Heavier tabs (markdown renderer, charts) load in the background, off the startup path.
+const LumenAiChat = lazy(() =>
+  import("@/components/lumen-ai-chat").then((m) => ({ default: m.LumenAiChat })),
+);
+const JournalSection = lazy(() =>
+  import("@/components/app/journal").then((m) => ({ default: m.JournalSection })),
+);
+const SleepSection = lazy(() =>
+  import("@/components/app/journal").then((m) => ({ default: m.SleepSection })),
+);
+const MetricsSection = lazy(() =>
+  import("@/components/app/metrics").then((m) => ({ default: m.MetricsSection })),
+);
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "Lumen — твой день" }] }),
@@ -49,24 +59,52 @@ const ORDER: Record<Section, number> = {
   ai: 4,
 };
 
-const pageVariants = {
-  enter: (dir: number) => ({ opacity: 0, x: dir * 28 }),
-  center: { opacity: 1, x: 0 },
-  exit: (dir: number) => ({ opacity: 0, x: dir * -28 }),
-};
-
 function AppPage() {
   const [[section, direction], setPage] = useState<[Section, number]>(["home", 0]);
+  // Visited tabs stay mounted (like a native tab bar): switching back is instant,
+  // with no reload or "Загрузка…" flash.
+  const [visited, setVisited] = useState<Section[]>(["home"]);
   const [name, setName] = useState("");
 
-  function setSection(next: Section) {
-    if (next === section) {
+  const sectionRef = useRef(section);
+  sectionRef.current = section;
+  // Stable identity, so the memoized tab views below never re-render on tab switches.
+  const setSection = useCallback((next: Section) => {
+    const current = sectionRef.current;
+    if (next === current) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    setPage([next, Math.sign(ORDER[next] - ORDER[section])]);
+    setPage([next, Math.sign(ORDER[next] - ORDER[current])]);
+    setVisited((list) => (list.includes(next) ? list : [...list, next]));
     window.scrollTo({ top: 0 });
-  }
+  }, []);
+
+  // Created once: React skips re-rendering an element it has already seen, so
+  // switching tabs only toggles visibility instead of re-rendering every tab.
+  const views = useMemo<Record<Section, React.ReactNode>>(
+    () => ({
+      home: <HomeSection onGo={setSection} />,
+      plans: <PlannerPlansSection />,
+      routine: <PlannerRoutinesSection />,
+      journal: <JournalSection />,
+      sleep: <SleepSection />,
+      metrics: <MetricsSection />,
+      ai: <LumenAiChat />,
+    }),
+    [setSection],
+  );
+
+  // Warm up the main tabs in the background so even the first switch is instant.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setVisited((list) => [
+        ...list,
+        ...(["plans", "routine", "journal", "ai"] as Section[]).filter((id) => !list.includes(id)),
+      ]);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -116,33 +154,40 @@ function AppPage() {
           </div>
         )}
 
-        <AnimatePresence mode="wait" initial={false} custom={direction}>
-          <motion.div
-            key={section}
-            custom={direction}
-            variants={pageVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{
-              x: { type: "spring", damping: 32, stiffness: 420 },
-              opacity: { duration: 0.16 },
-            }}
+        {visited.map((id) => (
+          <div
+            key={id}
+            // Re-shown tabs replay the CSS enter animation (GPU: opacity + transform).
+            // The AI chat is position:fixed, so it only fades (a transform would re-anchor it).
+            className={id !== section ? "hidden" : id === "ai" ? "tab-fade" : "tab-enter"}
+            style={{ "--tab-dir": direction } as React.CSSProperties}
           >
-            {section === "home" && <HomeSection onGo={setSection} />}
-            {section === "plans" && <PlannerPlansSection />}
-            {section === "routine" && <PlannerRoutinesSection />}
-            {section === "journal" && <JournalSection />}
-            {section === "sleep" && <SleepSection />}
-            {section === "metrics" && <MetricsSection />}
-            {section === "ai" && <LumenAiChat />}
-          </motion.div>
-        </AnimatePresence>
+            <Suspense fallback={null}>{views[id]}</Suspense>
+          </div>
+        ))}
       </main>
 
       {/* Bottom navigation */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-2xl backdrop-saturate-150">
-        <div className="mx-auto flex max-w-4xl items-stretch justify-between px-2">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)]">
+        <div className="relative mx-auto flex max-w-4xl items-stretch justify-between px-2">
+          {/* One highlight that slides between tabs with a CSS transform (compositor-only). */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute top-2.5 h-8 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+            style={{
+              left: "0.5rem",
+              width: `calc((100% - 1rem) / ${SECTIONS.length})`,
+              transform: `translateX(${
+                Math.max(
+                  0,
+                  SECTIONS.findIndex((s) => s.id === section),
+                ) * 100
+              }%)`,
+              opacity: SECTIONS.some((s) => s.id === section) ? 1 : 0,
+            }}
+          >
+            <span className="mx-auto block h-full w-full max-w-12 rounded-xl bg-accent" />
+          </span>
           {SECTIONS.map((s) => {
             const Icon = s.icon;
             const active = section === s.id;
@@ -151,19 +196,12 @@ function AppPage() {
                 key={s.id}
                 onClick={() => setSection(s.id)}
                 aria-label={s.label}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 transition-colors ${
+                className={`relative flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 transition-colors ${
                   active ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
-                <span className="relative inline-flex h-8 w-full max-w-12 items-center justify-center">
-                  {active && (
-                    <motion.span
-                      layoutId="nav-pill"
-                      className="absolute inset-0 rounded-xl bg-accent"
-                      transition={{ type: "spring", damping: 30, stiffness: 400 }}
-                    />
-                  )}
-                  <Icon className="relative h-5 w-5" />
+                <span className="inline-flex h-8 w-full max-w-12 items-center justify-center">
+                  <Icon className="h-5 w-5" />
                 </span>
                 <span className="truncate text-[10px] font-medium leading-none">{s.label}</span>
               </button>
