@@ -1,17 +1,40 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
-import { Check, Plus, Settings, Sparkles, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ImagePlus, Plus, Settings, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
-import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
+import { PromptInput, PromptInputBody, PromptInputButton, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { chatWithAi, resetAiChat, type AiProposal } from "@/lib/ai.functions";
+import { CHAT_IMAGES_BUCKET, chatWithAi, resetAiChat, type AiProposal } from "@/lib/ai.functions";
 import { createTask, updateRoutineFuture, updateTaskInstance } from "@/lib/planner";
 
-type AiMsg = { id?: string; role: "user" | "assistant"; content: string; proposal?: AiProposal | null };
+type AiMsg = { id?: string; role: "user" | "assistant"; content: string; imageUrl?: string | null; proposal?: AiProposal | null };
+type PickedImage = { blob: Blob; previewUrl: string };
+
+const MAX_IMAGE_SIDE = 1600;
+
+// Downscale and re-encode as JPEG on the device: iPhone photos are large (and often HEIC).
+async function prepareImage(file: File): Promise<Blob> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Не удалось обработать фото"))), "image/jpeg", 0.85),
+    );
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export function LumenAiChat() {
   const send = useServerFn(chatWithAi);
@@ -21,23 +44,65 @@ export function LumenAiChat() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState<number | null>(null);
+  const [image, setImage] = useState<PickedImage | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => { void load(); }, []);
   async function load() {
     setLoading(true);
-    const { data } = await supabase.from("ai_messages").select("id, role, content").order("created_at", { ascending: true });
-    setMessages((data ?? []).filter((message) => message.role !== "system") as AiMsg[]);
+    let rows: { id: string; role: string; content: string; image_path?: string | null }[] = [];
+    const withImages = await supabase.from("ai_messages").select("id, role, content, image_path").order("created_at", { ascending: true });
+    if (withImages.error) {
+      // Fallback until the chat-images migration is applied.
+      const { data } = await supabase.from("ai_messages").select("id, role, content").order("created_at", { ascending: true });
+      rows = data ?? [];
+    } else rows = withImages.data ?? [];
+
+    const paths = rows.map((row) => row.image_path).filter((path): path is string => !!path);
+    const signed = new Map<string, string>();
+    if (paths.length) {
+      const { data } = await supabase.storage.from(CHAT_IMAGES_BUCKET).createSignedUrls(paths, 60 * 60);
+      for (const item of data ?? []) if (item.path && item.signedUrl) signed.set(item.path, item.signedUrl);
+    }
+    setMessages(
+      rows
+        .filter((row) => row.role !== "system")
+        .map((row) => ({ id: row.id, role: row.role as AiMsg["role"], content: row.content, imageUrl: row.image_path ? signed.get(row.image_path) ?? null : null })),
+    );
     setLoading(false);
+  }
+
+  async function pickImage(file: File | undefined) {
+    if (!file) return;
+    try {
+      const blob = await prepareImage(file);
+      if (image) URL.revokeObjectURL(image.previewUrl);
+      setImage({ blob, previewUrl: URL.createObjectURL(blob) });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось открыть фото");
+    }
+  }
+
+  async function uploadImage(blob: Blob) {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) throw new Error("Нужно войти заново");
+    const path = `${auth.user.id}/${crypto.randomUUID()}.jpg`;
+    const { error } = await supabase.storage.from(CHAT_IMAGES_BUCKET).upload(path, blob, { contentType: "image/jpeg" });
+    if (error) throw new Error(`Фото не загрузилось: ${error.message}`);
+    return path;
   }
 
   async function submit(message: { text: string }) {
     const value = message.text.trim();
-    if (!value || sending) return;
+    const picked = image;
+    if ((!value && !picked) || sending) return;
     setText("");
-    setMessages((current) => [...current, { role: "user", content: value }]);
+    setImage(null);
+    setMessages((current) => [...current, { role: "user", content: value, imageUrl: picked?.previewUrl ?? null }]);
     setSending(true);
     try {
-      const result = await send({ data: { message: value } });
+      const imagePath = picked ? await uploadImage(picked.blob) : null;
+      const result = await send({ data: { message: value, imagePath } });
       setMessages((current) => [...current, { role: "assistant", content: result.reply, proposal: result.proposal ?? null }]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось получить ответ");
@@ -78,7 +143,8 @@ export function LumenAiChat() {
         <ConversationContent className="mx-auto w-full max-w-3xl gap-5 px-4 py-6">
           {loading ? <p className="py-16 text-center text-sm text-muted-foreground">Загружаю разговор…</p> : messages.length === 0 ? <ConversationEmptyState icon={<Sparkles className="h-8 w-8" />} title="Привет, я рядом" description="Попроси поставить задачу, составить план или перенести дело." /> : messages.map((message, index) => (
             <Message key={message.id ?? index} from={message.role}>
-              <MessageContent className={message.role === "user" ? "rounded-2xl bg-foreground text-background" : "text-[15px] leading-relaxed"}><MessageResponse>{message.content}</MessageResponse></MessageContent>
+              {message.imageUrl && <img src={message.imageUrl} alt="Фото" className={`max-h-72 max-w-[75%] rounded-2xl object-cover ${message.role === "user" ? "ml-auto" : ""}`} />}
+              {message.content && <MessageContent className={message.role === "user" ? "rounded-2xl bg-foreground text-background" : "text-[15px] leading-relaxed"}><MessageResponse>{message.content}</MessageResponse></MessageContent>}
               {message.proposal && <ProposalCard proposal={message.proposal} applying={applying === index} onConfirm={() => void applyProposal(message.proposal!, index)} onCancel={() => setMessages((current) => current.map((item, i) => i === index ? { ...item, proposal: null } : item))} />}
             </Message>
           ))}
@@ -89,8 +155,18 @@ export function LumenAiChat() {
 
       <div className="shrink-0 border-t border-border bg-background px-3 py-3">
         <PromptInput onSubmit={submit} className="mx-auto max-w-3xl rounded-2xl bg-card">
+          {image && (
+            <div className="relative m-2 mb-0 w-fit">
+              <img src={image.previewUrl} alt="Выбранное фото" className="h-20 w-20 rounded-xl object-cover" />
+              <button type="button" onClick={() => { URL.revokeObjectURL(image.previewUrl); setImage(null); }} aria-label="Убрать фото" className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-foreground text-background"><X className="h-3.5 w-3.5" /></button>
+            </div>
+          )}
           <PromptInputBody><PromptInputTextarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Напиши Lumen…" className="min-h-12 text-base" /></PromptInputBody>
-          <PromptInputFooter className="justify-end"><span className="text-[10px] text-muted-foreground">AI сначала предложит изменения</span><PromptInputSubmit disabled={!text.trim() || sending} status={sending ? "submitted" : "ready"} className="h-9 w-9 rounded-full" /></PromptInputFooter>
+          <PromptInputFooter className="justify-between">
+            <input ref={fileInput} type="file" accept="image/*" className="hidden" onChange={(event) => { void pickImage(event.target.files?.[0]); event.target.value = ""; }} />
+            <PromptInputButton onClick={() => fileInput.current?.click()} aria-label="Добавить фото" disabled={sending}><ImagePlus /></PromptInputButton>
+            <div className="flex items-center gap-2"><span className="text-[10px] text-muted-foreground">AI сначала предложит изменения</span><PromptInputSubmit disabled={(!text.trim() && !image) || sending} status={sending ? "submitted" : "ready"} className="h-9 w-9 rounded-full" /></div>
+          </PromptInputFooter>
         </PromptInput>
       </div>
     </section>
