@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 
 // Google Gemini by default, via its OpenAI-compatible endpoint. Any other
 // OpenAI-compatible API works too: set AI_API_URL / AI_MODEL.
@@ -272,17 +272,30 @@ export const chatWithAi = createServerFn({ method: "POST" })
     }
     if (!reply) reply = "Готово.";
 
-    await supabase.from("ai_messages").insert([
+    const rows: Database["public"]["Tables"]["ai_messages"]["Insert"][] = [
       {
         user_id: userId,
         role: "user",
         content: data.message.trim(),
         ...(imagePath ? { image_path: imagePath } : {}),
       },
-      { user_id: userId, role: "assistant", content: reply },
-    ]);
+      {
+        user_id: userId,
+        role: "assistant",
+        content: reply,
+        ...(proposal ? { proposal: proposal as unknown as Json } : {}),
+      },
+    ];
+    let saved = await supabase.from("ai_messages").insert(rows).select("id, role");
+    // Before the ai_message_proposals migration the column is missing: save without it.
+    if (saved.error && proposal)
+      saved = await supabase
+        .from("ai_messages")
+        .insert(rows.map(({ proposal: _omit, ...row }) => row))
+        .select("id, role");
+    const messageId = saved.data?.find((row) => row.role === "assistant")?.id ?? null;
 
-    return { reply, proposal };
+    return { reply, proposal, messageId };
   });
 
 const ROUTINE_TOOLS_HINT = `Ты помогаешь планировать, но НИКОГДА сам не меняешь данные.

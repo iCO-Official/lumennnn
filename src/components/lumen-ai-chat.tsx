@@ -74,19 +74,29 @@ export function LumenAiChat() {
   }, []);
   async function load() {
     setLoading(true);
-    let rows: { id: string; role: string; content: string; image_path?: string | null }[] = [];
-    const withImages = await supabase
-      .from("ai_messages")
-      .select("id, role, content, image_path")
-      .order("created_at", { ascending: true });
-    if (withImages.error) {
-      // Fallback until the chat-images migration is applied.
-      const { data } = await supabase
+    type Row = {
+      id: string;
+      role: string;
+      content: string;
+      image_path?: string | null;
+      proposal?: unknown;
+    };
+    let rows: Row[] = [];
+    // Newest schema first; older columns sets are fallbacks until migrations are applied.
+    for (const columns of [
+      "id, role, content, image_path, proposal",
+      "id, role, content, image_path",
+      "id, role, content",
+    ]) {
+      const { data, error } = await supabase
         .from("ai_messages")
-        .select("id, role, content")
+        .select(columns)
         .order("created_at", { ascending: true });
-      rows = data ?? [];
-    } else rows = withImages.data ?? [];
+      if (!error) {
+        rows = (data ?? []) as unknown as Row[];
+        break;
+      }
+    }
 
     const paths = rows.map((row) => row.image_path).filter((path): path is string => !!path);
     const signed = new Map<string, string>();
@@ -105,6 +115,7 @@ export function LumenAiChat() {
           role: row.role as AiMsg["role"],
           content: row.content,
           imageUrl: row.image_path ? (signed.get(row.image_path) ?? null) : null,
+          proposal: (row.proposal as AiProposal | null | undefined) ?? null,
         })),
     );
     setLoading(false);
@@ -148,7 +159,12 @@ export function LumenAiChat() {
       const result = await send({ data: { message: value, imagePath, today: localIso() } });
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: result.reply, proposal: result.proposal ?? null },
+        {
+          id: result.messageId ?? undefined,
+          role: "assistant",
+          content: result.reply,
+          proposal: result.proposal ?? null,
+        },
       ]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось получить ответ");
@@ -197,13 +213,15 @@ export function LumenAiChat() {
             repeatDays: [],
           });
       }
+      const target = messages[index];
+      const content = `${target.content}\n\nИзменения применены.`;
       setMessages((current) =>
         current.map((message, i) =>
-          i === index
-            ? { ...message, proposal: null, content: `${message.content}\n\nИзменения применены.` }
-            : message,
+          i === index ? { ...message, proposal: null, content } : message,
         ),
       );
+      if (target.id)
+        await supabase.from("ai_messages").update({ proposal: null, content }).eq("id", target.id);
       toast.success("Расписание обновлено");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось применить изменения");
@@ -214,7 +232,7 @@ export function LumenAiChat() {
 
   return (
     <section className="fixed inset-x-0 bottom-[var(--nav-h,calc(4.5rem+env(safe-area-inset-bottom)))] top-0 z-20 mx-auto flex max-w-4xl flex-col bg-background pt-[env(safe-area-inset-top)]">
-      <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
+      <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background">
             <Sparkles className="h-4 w-4" />
@@ -224,15 +242,22 @@ export function LumenAiChat() {
             <p className="text-[11px] text-muted-foreground">Помощник по твоему дню</p>
           </div>
         </div>
-        <div className="flex gap-1">
-          <Button variant="ghost" size="icon" onClick={clear} aria-label="Новый чат">
-            <Plus />
-          </Button>
-          <Button asChild variant="ghost" size="icon">
-            <Link to="/app/settings" aria-label="Настройки">
-              <Settings />
-            </Link>
-          </Button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={clear}
+            aria-label="Новый чат"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-card"
+          >
+            <Plus className="h-6 w-6" />
+          </button>
+          <Link
+            to="/app/settings"
+            aria-label="Настройки"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-card"
+          >
+            <Settings className="h-6 w-6" />
+          </Link>
         </div>
       </header>
 
@@ -272,13 +297,18 @@ export function LumenAiChat() {
                     proposal={message.proposal}
                     applying={applying === index}
                     onConfirm={() => void applyProposal(message.proposal!, index)}
-                    onCancel={() =>
+                    onCancel={() => {
                       setMessages((current) =>
                         current.map((item, i) =>
                           i === index ? { ...item, proposal: null } : item,
                         ),
-                      )
-                    }
+                      );
+                      if (message.id)
+                        void supabase
+                          .from("ai_messages")
+                          .update({ proposal: null })
+                          .eq("id", message.id);
+                    }}
                   />
                 )}
               </Message>

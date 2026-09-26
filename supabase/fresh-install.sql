@@ -588,3 +588,8 @@ GRANT EXECUTE ON FUNCTION public.push_keys(text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.push_set_keys(text, text, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.push_remove_subscription(text, text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.push_due(text) TO anon, authenticated;
+
+-- ===== 20260926120000_ai_message_proposals.sql =====
+-- Keep AI proposal cards (create task / schedule / move) with the message,
+-- so they survive reloads until confirmed or dismissed (then set to NULL).
+ALTER TABLE public.ai_messages ADD COLUMN IF NOT EXISTS proposal jsonb;
