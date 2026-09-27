@@ -188,6 +188,7 @@ export function LumenAiChat() {
           date: proposal.date,
           time: proposal.time,
           repeatDays: proposal.repeatDays ?? [],
+          subtasks: proposal.subtasks ?? [],
         });
       } else if (proposal.kind === "update_task") {
         if (proposal.routineId && proposal.allFuture)
@@ -410,7 +411,13 @@ function ProposalCard({
   const details =
     proposal.kind === "schedule"
       ? proposal.items.map((item) => `${item.time ?? "Без времени"} — ${item.title}`)
-      : [`${proposal.time ?? "Без времени"} — ${proposal.title}`, proposal.date];
+      : [
+          `${proposal.time ?? "Без времени"} — ${proposal.title}`,
+          proposal.date,
+          ...(proposal.kind === "create_task" && proposal.subtasks?.length
+            ? proposal.subtasks.map((st) => `☐ ${st}`)
+            : []),
+        ];
   return (
     <div className="w-full max-w-md border-y border-border py-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
