@@ -32,6 +32,7 @@ import {
   localIso,
   PLANNER_CHANGED,
   removeTask,
+  setTaskCompleted,
   setRoutineActive,
   updateRoutineFuture,
   updateTaskInstance,
@@ -106,12 +107,10 @@ export function PlansSection() {
           : item,
       ),
     );
-    const { error } = await supabase
-      .from("tasks")
-      .update({ completed, completed_at: completed ? new Date().toISOString() : null })
-      .eq("id", task.id);
-    if (error) {
-      toast.error(error.message);
+    try {
+      await setTaskCompleted(task.id, completed);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
       void refresh();
     }
   }
@@ -453,7 +452,7 @@ function MonthGrid({
   );
 }
 
-function TaskEditor({
+export function TaskEditor({
   task,
   editAllFuture,
   defaultDate,

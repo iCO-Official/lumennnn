@@ -191,6 +191,15 @@ export async function loadRoutines() {
   return (data ?? []) as PlannerRoutine[];
 }
 
+export async function setTaskCompleted(id: string, completed: boolean) {
+  const { error } = await supabase
+    .from("tasks")
+    .update({ completed, completed_at: completed ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw error;
+  plannerChanged();
+}
+
 /** Edits one day only. A routine instance becomes detached from series edits. */
 export async function updateTaskInstance(
   task: Pick<PlannerTask, "id" | "routine_id">,
