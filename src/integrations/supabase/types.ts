@@ -427,6 +427,7 @@ export type Database = {
           scheduled_time: string | null;
           scope: string;
           sort_order: number;
+          subtasks: Json;
           title: string;
           updated_at: string;
           user_id: string;
@@ -445,6 +446,7 @@ export type Database = {
           scheduled_time?: string | null;
           scope?: string;
           sort_order?: number;
+          subtasks?: Json;
           title: string;
           updated_at?: string;
           user_id: string;
@@ -463,6 +465,7 @@ export type Database = {
           scheduled_time?: string | null;
           scope?: string;
           sort_order?: number;
+          subtasks?: Json;
           title?: string;
           updated_at?: string;
           user_id?: string;

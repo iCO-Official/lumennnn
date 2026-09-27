@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { isoAddDays, routineOccurrences } from "@/lib/routine-schedule";
 
+export type Subtask = { id: string; title: string; done: boolean };
+
 export type PlannerTask = {
   id: string;
   title: string;
@@ -14,6 +16,7 @@ export type PlannerTask = {
   detached: boolean;
   sort_order: number;
   scope: string;
+  subtasks: Subtask[];
 };
 
 export type PlannerRoutine = {
@@ -33,6 +36,8 @@ export type TaskDraft = {
   time: string | null;
   repeatDays: number[];
   sortOrder?: number;
+  /** Optional checklist titles (one-off tasks only). */
+  subtasks?: string[];
 };
 
 type RoutineValues = Partial<
@@ -40,13 +45,21 @@ type RoutineValues = Partial<
 >;
 
 const TASK_FIELDS =
-  "id,title,notes,scheduled_for,scheduled_time,completed,completed_at,routine_id,occurrence_date,detached,sort_order,scope";
+  "id,title,notes,scheduled_for,scheduled_time,completed,completed_at,routine_id,occurrence_date,detached,sort_order,scope,subtasks";
 const ROUTINE_FIELDS = "id,title,time_of_day,weekdays,starts_on,ends_on,sort_order,active";
 
 /** Fired after any planner write, so kept-alive tabs (Plans, Routines) refresh. */
 export const PLANNER_CHANGED = "lumen:planner-changed";
 function plannerChanged() {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(PLANNER_CHANGED));
+}
+
+export function makeSubtasks(titles: string[]): Subtask[] {
+  return titles
+    .map((title) => title.trim())
+    .filter(Boolean)
+    .slice(0, 30)
+    .map((title) => ({ id: crypto.randomUUID(), title: title.slice(0, 200), done: false }));
 }
 
 // How far ahead routine instances are created after a routine changes.
@@ -170,6 +183,7 @@ export async function createTask(draft: TaskDraft) {
       scheduled_for: draft.date,
       scheduled_time: draft.time,
       sort_order: draft.sortOrder ?? 0,
+      subtasks: makeSubtasks(draft.subtasks ?? []),
       scope: "day",
     })
     .select(TASK_FIELDS)
@@ -191,11 +205,41 @@ export async function loadRoutines() {
   return (data ?? []) as PlannerRoutine[];
 }
 
-export async function setTaskCompleted(id: string, completed: boolean) {
+/** Completing a task ticks its whole checklist too. Returns the updated task. */
+export async function setTaskCompleted(task: PlannerTask, completed: boolean) {
+  const subtasks = completed ? task.subtasks.map((s) => ({ ...s, done: true })) : task.subtasks;
+  const values = {
+    completed,
+    completed_at: completed ? new Date().toISOString() : null,
+    ...(task.subtasks.length ? { subtasks } : {}),
+  };
+  const { error } = await supabase.from("tasks").update(values).eq("id", task.id);
+  if (error) throw error;
+  plannerChanged();
+  return { ...task, ...values, subtasks };
+}
+
+/** Ticks one checklist item; the task is done exactly when every item is. */
+export function withSubtaskToggled(task: PlannerTask, subtaskId: string): PlannerTask {
+  const subtasks = task.subtasks.map((s) => (s.id === subtaskId ? { ...s, done: !s.done } : s));
+  const completed = subtasks.length > 0 && subtasks.every((s) => s.done);
+  return {
+    ...task,
+    subtasks,
+    completed,
+    completed_at: completed ? (task.completed_at ?? new Date().toISOString()) : null,
+  };
+}
+
+export async function saveSubtasks(task: PlannerTask) {
   const { error } = await supabase
     .from("tasks")
-    .update({ completed, completed_at: completed ? new Date().toISOString() : null })
-    .eq("id", id);
+    .update({
+      subtasks: task.subtasks,
+      completed: task.completed,
+      completed_at: task.completed_at,
+    })
+    .eq("id", task.id);
   if (error) throw error;
   plannerChanged();
 }
@@ -203,7 +247,9 @@ export async function setTaskCompleted(id: string, completed: boolean) {
 /** Edits one day only. A routine instance becomes detached from series edits. */
 export async function updateTaskInstance(
   task: Pick<PlannerTask, "id" | "routine_id">,
-  values: Partial<Pick<PlannerTask, "title" | "scheduled_for" | "scheduled_time" | "sort_order">>,
+  values: Partial<
+    Pick<PlannerTask, "title" | "scheduled_for" | "scheduled_time" | "sort_order" | "subtasks">
+  >,
 ) {
   const { error } = await supabase
     .from("tasks")

@@ -53,7 +53,15 @@ type ToolCall = { id: string; type: "function"; function: { name: string; argume
 type GwChoice = { message: { content: string | null; tool_calls?: ToolCall[] } };
 
 export type AiProposal =
-  | { kind: "create_task"; title: string; date: string; time: string | null; repeatDays?: number[] }
+  | {
+      kind: "create_task";
+      title: string;
+      date: string;
+      time: string | null;
+      repeatDays?: number[];
+      /** Checklist items, only when the user listed them. */
+      subtasks?: string[];
+    }
   | {
       kind: "update_task";
       taskId: string;
@@ -301,7 +309,8 @@ export const chatWithAi = createServerFn({ method: "POST" })
 const ROUTINE_TOOLS_HINT = `Ты помогаешь планировать, но НИКОГДА сам не меняешь данные.
 Когда пользователь просит создать задачу, составить расписание или перенести дело, используй подходящий инструмент предложения.
 Инструмент только формирует карточку подтверждения. Скажи коротко, что предлагаешь, и попроси подтвердить.
-Дата строго YYYY-MM-DD, время HH:MM или пустая строка. Для поиска существующего дела сначала используй list_tasks.`;
+Дата строго YYYY-MM-DD, время HH:MM или пустая строка. Для поиска существующего дела сначала используй list_tasks.
+Подзадачи (subtasks) добавляй только когда пользователь сам перечислил, из чего состоит задача; сами их не придумывай.`;
 
 const ROUTINE_TOOLS = [
   {
@@ -359,6 +368,12 @@ const ROUTINE_TOOLS = [
             type: "array",
             items: { type: "integer" },
             description: "0=Вс…6=Сб; пусто для одноразовой задачи",
+          },
+          subtasks: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Подзадачи-чеклист внутри задачи. ТОЛЬКО если пользователь сам перечислил пункты (например «уроки: русский, немецкий»). Иначе не передавай. Только для одноразовых задач.",
           },
         },
         required: ["title", "date", "time", "repeat_days"],
@@ -431,6 +446,12 @@ async function runRoutineTool(
         ? args.repeat_days.filter(
             (day: unknown) => Number.isInteger(day) && Number(day) >= 0 && Number(day) <= 6,
           )
+        : [],
+      subtasks: Array.isArray(args.subtasks)
+        ? args.subtasks
+            .map((item) => String(item).trim().slice(0, 200))
+            .filter(Boolean)
+            .slice(0, 30)
         : [],
     };
     return { result: { proposed: true }, proposal };

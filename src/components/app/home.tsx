@@ -26,11 +26,13 @@ import {
   loadTasks,
   localIso,
   PLANNER_CHANGED,
+  saveSubtasks,
   setTaskCompleted,
+  withSubtaskToggled,
   type PlannerTask,
 } from "@/lib/planner";
 import { AppSheet } from "@/components/ui/app-sheet";
-import { TaskEditor } from "@/components/planner-sections";
+import { SubtaskCount, SubtaskList, TaskEditor } from "@/components/planner-sections";
 
 export type Section = "home" | "plans" | "routine" | "journal" | "sleep" | "ai" | "metrics";
 
@@ -93,9 +95,23 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
 
   async function toggle(task: PlannerTask) {
     const completed = !task.completed;
-    setTasks((list) => list?.map((t) => (t.id === task.id ? { ...t, completed } : t)) ?? list);
+    const subtasks = completed ? task.subtasks.map((st) => ({ ...st, done: true })) : task.subtasks;
+    setTasks(
+      (list) => list?.map((t) => (t.id === task.id ? { ...t, completed, subtasks } : t)) ?? list,
+    );
     try {
-      await setTaskCompleted(task.id, completed);
+      await setTaskCompleted(task, completed);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      void refresh();
+    }
+  }
+
+  async function toggleSubtask(task: PlannerTask, subtaskId: string) {
+    const next = withSubtaskToggled(task, subtaskId);
+    setTasks((list) => list?.map((t) => (t.id === task.id ? next : t)) ?? list);
+    try {
+      await saveSubtasks(next);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
       void refresh();
@@ -108,7 +124,13 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
   return (
     <div className="flex flex-col gap-4">
       <DayProgress done={done} total={list.length} loading={tasks === null} />
-      <NowNext tasks={list} now={now} onDone={toggle} onAdd={() => setAdding(true)} />
+      <NowNext
+        tasks={list}
+        now={now}
+        onDone={toggle}
+        onToggleSubtask={toggleSubtask}
+        onAdd={() => setAdding(true)}
+      />
       {list.length > 0 && (
         <Timeline tasks={list} now={now} onToggle={toggle} onAll={() => onGo("plans")} />
       )}
@@ -156,11 +178,13 @@ function NowNext({
   tasks,
   now,
   onDone,
+  onToggleSubtask,
   onAdd,
 }: {
   tasks: PlannerTask[];
   now: Date;
   onDone: (task: PlannerTask) => void;
+  onToggleSubtask: (task: PlannerTask, subtaskId: string) => void;
   onAdd: () => void;
 }) {
   const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -231,7 +255,18 @@ function NowNext({
           <p className="mt-1 text-sm opacity-60">
             {meta}
             {target.routine_id && " · рутина"}
+            {target.subtasks.length > 0 &&
+              ` · ${target.subtasks.filter((st) => st.done).length}/${target.subtasks.length}`}
           </p>
+          {target.subtasks.length > 0 && (
+            <div className="mt-3">
+              <SubtaskList
+                inverted
+                subtasks={target.subtasks}
+                onToggle={(id) => onToggleSubtask(target, id)}
+              />
+            </div>
+          )}
         </motion.div>
       </AnimatePresence>
       <div className="mt-4 flex items-center justify-between gap-3">
@@ -291,6 +326,7 @@ function Timeline({
           className={`min-w-0 flex-1 truncate text-[15px] transition-colors duration-300 ${task.completed ? "text-muted-foreground line-through" : ""}`}
         >
           {task.title}
+          {task.subtasks.length > 0 && <SubtaskCount subtasks={task.subtasks} />}
           {task.routine_id && (
             <Repeat className="ml-1.5 inline h-3 w-3 align-baseline text-muted-foreground" />
           )}

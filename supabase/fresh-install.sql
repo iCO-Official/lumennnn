@@ -593,3 +593,7 @@ GRANT EXECUTE ON FUNCTION public.push_due(text) TO anon, authenticated;
 -- Keep AI proposal cards (create task / schedule / move) with the message,
 -- so they survive reloads until confirmed or dismissed (then set to NULL).
 ALTER TABLE public.ai_messages ADD COLUMN IF NOT EXISTS proposal jsonb;
+
+-- ===== 20260927100000_task_subtasks.sql =====
+-- Optional checklist inside a task: [{ "id": "...", "title": "Русский", "done": false }, ...]
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS subtasks jsonb NOT NULL DEFAULT '[]'::jsonb;

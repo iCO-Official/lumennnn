@@ -30,9 +30,13 @@ import {
   loadRoutines,
   loadTasks,
   localIso,
+  makeSubtasks,
   PLANNER_CHANGED,
   removeTask,
+  saveSubtasks,
   setTaskCompleted,
+  withSubtaskToggled,
+  type Subtask,
   setRoutineActive,
   updateRoutineFuture,
   updateTaskInstance,
@@ -100,15 +104,32 @@ export function PlansSection() {
 
   async function toggle(task: PlannerTask) {
     const completed = !task.completed;
+    const subtasks = completed ? task.subtasks.map((st) => ({ ...st, done: true })) : task.subtasks;
     setTasks((current) =>
       current.map((item) =>
         item.id === task.id
-          ? { ...item, completed, completed_at: completed ? new Date().toISOString() : null }
+          ? {
+              ...item,
+              completed,
+              subtasks,
+              completed_at: completed ? new Date().toISOString() : null,
+            }
           : item,
       ),
     );
     try {
-      await setTaskCompleted(task.id, completed);
+      await setTaskCompleted(task, completed);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      void refresh();
+    }
+  }
+
+  async function toggleSubtask(task: PlannerTask, subtaskId: string) {
+    const next = withSubtaskToggled(task, subtaskId);
+    setTasks((current) => current.map((item) => (item.id === task.id ? next : item)));
+    try {
+      await saveSubtasks(next);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
       void refresh();
@@ -216,6 +237,7 @@ export function PlansSection() {
         <TaskList
           tasks={selectedTasks}
           onToggle={toggle}
+          onToggleSubtask={toggleSubtask}
           onEdit={requestEdit}
           onDelete={requestDelete}
         />
@@ -265,11 +287,13 @@ export function PlansSection() {
 function TaskList({
   tasks,
   onToggle,
+  onToggleSubtask,
   onEdit,
   onDelete,
 }: {
   tasks: PlannerTask[];
   onToggle: (task: PlannerTask) => void;
+  onToggleSubtask: (task: PlannerTask, subtaskId: string) => void;
   onEdit: (task: PlannerTask) => void;
   onDelete: (task: PlannerTask) => void;
 }) {
@@ -291,13 +315,25 @@ function TaskList({
     );
   return (
     <div className="space-y-7">
-      <TaskGroup tasks={timed} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
+      <TaskGroup
+        tasks={timed}
+        onToggle={onToggle}
+        onToggleSubtask={onToggleSubtask}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
       {untimed.length > 0 && (
         <div>
           <h3 className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Без времени
           </h3>
-          <TaskGroup tasks={untimed} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
+          <TaskGroup
+            tasks={untimed}
+            onToggle={onToggle}
+            onToggleSubtask={onToggleSubtask}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         </div>
       )}
     </div>
@@ -307,11 +343,13 @@ function TaskList({
 function TaskGroup({
   tasks,
   onToggle,
+  onToggleSubtask,
   onEdit,
   onDelete,
 }: {
   tasks: PlannerTask[];
   onToggle: (task: PlannerTask) => void;
+  onToggleSubtask: (task: PlannerTask, subtaskId: string) => void;
   onEdit: (task: PlannerTask) => void;
   onDelete: (task: PlannerTask) => void;
 }) {
@@ -353,6 +391,7 @@ function TaskGroup({
                   className={`block break-words text-[15px] transition-colors duration-300 ${task.completed ? "text-muted-foreground line-through decoration-muted-foreground/60" : ""}`}
                 >
                   {task.title}
+                  {task.subtasks.length > 0 && <SubtaskCount subtasks={task.subtasks} />}
                 </span>
                 {task.routine_id && (
                   <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -371,6 +410,64 @@ function TaskGroup({
               <Trash2 />
             </Button>
           </div>
+          {task.subtasks.length > 0 && (
+            <div className="pb-3 pl-[3.25rem] pr-4">
+              <SubtaskList subtasks={task.subtasks} onToggle={(id) => onToggleSubtask(task, id)} />
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function SubtaskCount({ subtasks }: { subtasks: Subtask[] }) {
+  const done = subtasks.filter((s) => s.done).length;
+  return (
+    <span className="ml-2 inline-flex rounded-full bg-secondary px-1.5 py-0.5 align-middle font-mono text-[10px] tabular-nums text-muted-foreground">
+      {done}/{subtasks.length}
+    </span>
+  );
+}
+
+/** Checklist inside a task. `inverted` for light-on-dark cards (e.g. the Home focus card). */
+export function SubtaskList({
+  subtasks,
+  onToggle,
+  inverted = false,
+}: {
+  subtasks: Subtask[];
+  onToggle: (id: string) => void;
+  inverted?: boolean;
+}) {
+  return (
+    <ul className="space-y-1">
+      {subtasks.map((st) => (
+        <li key={st.id}>
+          <button
+            type="button"
+            onClick={() => onToggle(st.id)}
+            className="flex w-full items-center gap-2.5 py-1 text-left text-sm"
+          >
+            <span
+              className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-colors duration-200 ${
+                st.done
+                  ? inverted
+                    ? "border-background bg-background text-foreground"
+                    : "border-foreground bg-foreground text-background"
+                  : inverted
+                    ? "border-background/50"
+                    : "border-muted-foreground/60"
+              }`}
+            >
+              {st.done && <Check className="h-3 w-3" strokeWidth={3.5} />}
+            </span>
+            <span
+              className={`min-w-0 flex-1 break-words transition-opacity duration-300 ${st.done ? "line-through opacity-50" : ""}`}
+            >
+              {st.title}
+            </span>
+          </button>
         </li>
       ))}
     </ul>
@@ -473,11 +570,21 @@ export function TaskEditor({
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<"one" | "list">("one");
   const [listText, setListText] = useState("");
+  const [subText, setSubText] = useState(task?.subtasks.map((st) => st.title).join("\n") ?? "");
+  const [showSubtasks, setShowSubtasks] = useState(!!task?.subtasks.length);
   const listItems = mode === "list" ? parseScheduleLines(listText) : [];
   const seriesEdit = !!task?.routine_id && editAllFuture;
   const canSave =
     (mode === "list" ? listItems.length > 0 : !!title.trim()) &&
     !(repeat === "custom" && !days.length);
+  const subLines = showSubtasks
+    ? subText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
+  const subtasksAllowed = mode === "one" && !seriesEdit && repeat === "none";
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!canSave) return;
@@ -494,13 +601,23 @@ export function TaskEditor({
             title: title.trim(),
             scheduled_for: date,
             scheduled_time: time || null,
+            // Keep ticks on items that stayed; new lines start unticked.
+            subtasks: subLines.map(
+              (line) => task.subtasks.find((st) => st.title === line) ?? makeSubtasks([line])[0],
+            ),
           });
       } else {
         const repeatDays =
           repeat === "daily" ? [0, 1, 2, 3, 4, 5, 6] : repeat === "custom" ? days : [];
         const items = mode === "list" ? listItems : [{ title: title.trim(), time: time || null }];
         for (const [index, item] of items.entries())
-          await createTask({ ...item, date, repeatDays, sortOrder: index });
+          await createTask({
+            ...item,
+            date,
+            repeatDays,
+            sortOrder: index,
+            subtasks: mode === "one" && !repeatDays.length ? subLines : [],
+          });
         if (items.length > 1) toast.success(`Добавлено: ${items.length}`);
       }
       onSaved();
@@ -588,6 +705,27 @@ export function TaskEditor({
             </label>
           )}
         </div>
+        {subtasksAllowed &&
+          (showSubtasks ? (
+            <label className="block text-xs text-muted-foreground">
+              Подзадачи — по одной на строку
+              <textarea
+                value={subText}
+                onChange={(e) => setSubText(e.target.value)}
+                rows={4}
+                placeholder={"Русский\nНемецкий\nОбществознание\nБиология"}
+                className="mt-1 w-full rounded-md border border-input bg-card px-3 py-2 text-base text-foreground outline-none focus:border-foreground"
+              />
+            </label>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowSubtasks(true)}
+              className="inline-flex h-10 items-center gap-2 rounded-full bg-secondary px-4 text-sm"
+            >
+              <Plus className="h-4 w-4" /> Подзадачи
+            </button>
+          ))}
         {!task && (
           <>
             <label className="block text-xs text-muted-foreground">
