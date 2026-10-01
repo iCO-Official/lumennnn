@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { CHAT_IMAGES_BUCKET, chatWithAi, resetAiChat, type AiProposal } from "@/lib/ai.functions";
 import { createTask, localIso, updateRoutineFuture, updateTaskInstance } from "@/lib/planner";
+import { repeatLabel } from "@/lib/routine-schedule";
 
 type AiMsg = {
   id?: string;
@@ -206,12 +207,13 @@ export function LumenAiChat() {
             },
           );
       } else {
-        for (const item of proposal.items)
+        for (const [i, item] of proposal.items.entries())
           await createTask({
             title: item.title,
-            date: proposal.date,
+            date: item.date || proposal.date,
             time: item.time,
-            repeatDays: [],
+            repeatDays: item.repeatDays ?? proposal.repeatDays ?? [],
+            sortOrder: i,
           });
       }
       const target = messages[index];
@@ -407,13 +409,30 @@ function ProposalCard({
         ? proposal.allFuture
           ? "Изменить рутину"
           : "Изменить задачу"
-        : "Добавить расписание";
+        : proposal.repeatDays?.length
+          ? "Добавить рутину"
+          : "Добавить расписание";
+  const scheduleRepeat =
+    proposal.kind === "schedule" && proposal.repeatDays?.length
+      ? repeatLabel(proposal.repeatDays)
+      : null;
   const details =
     proposal.kind === "schedule"
-      ? proposal.items.map((item) => `${item.time ?? "Без времени"} — ${item.title}`)
+      ? [
+          scheduleRepeat ? `${scheduleRepeat}, с ${proposal.date}` : proposal.date,
+          ...proposal.items.map((item) => {
+            const repeat =
+              !scheduleRepeat && item.repeatDays?.length
+                ? ` · ${repeatLabel(item.repeatDays)}`
+                : "";
+            return `${item.time ?? "Без времени"} — ${item.title}${repeat}`;
+          }),
+        ]
       : [
           `${proposal.time ?? "Без времени"} — ${proposal.title}`,
-          proposal.date,
+          proposal.kind === "create_task" && proposal.repeatDays?.length
+            ? `${repeatLabel(proposal.repeatDays)}, с ${proposal.date}`
+            : proposal.date,
           ...(proposal.kind === "create_task" && proposal.subtasks?.length
             ? proposal.subtasks.map((st) => `☐ ${st}`)
             : []),
