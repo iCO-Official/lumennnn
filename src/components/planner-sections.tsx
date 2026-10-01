@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Check, GripVertical, Pencil, Plus, Repeat, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { AppSheet } from "@/components/ui/app-sheet";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -43,7 +44,7 @@ import {
   type PlannerRoutine,
   type PlannerTask,
 } from "@/lib/planner";
-import { parseScheduleLines } from "@/lib/routine-schedule";
+import { parseScheduleLines, repeatLabel } from "@/lib/routine-schedule";
 
 const SHORT_DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
@@ -977,22 +978,14 @@ function RoutineRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">{routine.title}</p>
         <p className="truncate text-[10px] text-muted-foreground">
-          {routine.weekdays.length === 7
-            ? "Каждый день"
-            : MONDAY_FIRST.filter((d) => routine.weekdays.includes(d))
-                .map((d) => SHORT_DAYS[d])
-                .join(" · ")}
+          {repeatLabel(routine.weekdays)}
         </p>
       </div>
-      <button
-        onClick={() => onToggle(routine)}
-        className={`relative h-6 w-11 rounded-full transition-colors ${routine.active ? "bg-foreground" : "bg-secondary"}`}
+      <Switch
+        checked={routine.active}
+        onCheckedChange={() => onToggle(routine)}
         aria-label={routine.active ? "Выключить" : "Включить"}
-      >
-        <span
-          className={`absolute top-1 h-4 w-4 rounded-full bg-background transition-transform ${routine.active ? "translate-x-5" : "translate-x-1"}`}
-        />
-      </button>
+      />
       <Button variant="ghost" size="icon-sm" onClick={() => onEdit(routine)}>
         <Pencil />
       </Button>

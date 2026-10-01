@@ -150,30 +150,55 @@ function AppPage() {
     };
   }, [setSection]);
 
-  // iOS: when the keyboard opens, Safari scrolls the whole page up and often
-  // doesn't scroll it back after the keyboard closes, leaving the fixed tab bar
-  // shifted until the next tap. Snap the page back as soon as the keyboard hides.
+  // iOS: when the keyboard opens, Safari scrolls the page up and, especially in
+  // the home-screen app, often doesn't fully undo it after the keyboard closes:
+  // the page stays scrolled, or the layout viewport stays short and every fixed
+  // element (the tab bar, the AI chat) floats above the bottom edge.
+  // 1) scroll back once the keyboard is gone (retried — iOS ignores early calls);
+  // 2) publish any leftover gap as --vv-gap, which the tab bar and chat cover.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    let lastHeight = vv.height;
-    const restore = () => {
-      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-      window.scrollTo(0, Math.min(window.scrollY, maxScroll));
+    const root = document.documentElement;
+    const typing = () =>
+      !!document.activeElement?.matches?.("input, textarea, select, [contenteditable]");
+    const measure = () => {
+      const gap = typing() ? 0 : Math.round(vv.height + vv.offsetTop - window.innerHeight);
+      root.style.setProperty("--vv-gap", `${gap > 1 ? gap : 0}px`);
     };
+    const restore = () => {
+      if (typing()) return;
+      const maxScroll = Math.max(0, root.scrollHeight - window.innerHeight);
+      if (window.scrollY > maxScroll || vv.offsetTop > 0)
+        window.scrollTo(0, Math.min(window.scrollY, maxScroll));
+      measure();
+    };
+    let timers: ReturnType<typeof setTimeout>[] = [];
+    const settle = () => {
+      timers.forEach(clearTimeout);
+      timers = [50, 250, 500, 900].map((ms) => setTimeout(restore, ms));
+    };
+    let lastHeight = vv.height;
     const onResize = () => {
-      if (vv.height > lastHeight + 80) requestAnimationFrame(restore); // keyboard closed
+      if (vv.height > lastHeight + 80) settle(); // keyboard closed
       lastHeight = vv.height;
+      measure();
     };
     const onFocusOut = (e: FocusEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el?.matches?.("input, textarea, [contenteditable]")) setTimeout(restore, 60);
+      if (el?.matches?.("input, textarea, select, [contenteditable]")) settle();
     };
     vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", measure);
     document.addEventListener("focusout", onFocusOut);
+    window.addEventListener("pageshow", settle);
+    measure();
     return () => {
+      timers.forEach(clearTimeout);
       vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", measure);
       document.removeEventListener("focusout", onFocusOut);
+      window.removeEventListener("pageshow", settle);
     };
   }, []);
 
@@ -256,6 +281,7 @@ function AppPage() {
       <nav
         ref={navRef}
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(6px,calc(env(safe-area-inset-bottom)-14px))]"
+        style={{ transform: "translateY(var(--vv-gap, 0px))" }}
       >
         <div
           className="relative mx-auto flex max-w-4xl touch-none items-stretch justify-between px-2"
