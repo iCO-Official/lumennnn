@@ -34,7 +34,7 @@ import {
 import { AppSheet } from "@/components/ui/app-sheet";
 import { SubtaskCount, SubtaskList, TaskEditor } from "@/components/planner-sections";
 
-export type Section = "home" | "plans" | "routine" | "journal" | "sleep" | "ai" | "metrics";
+export type Section = "home" | "plans" | "settings" | "journal" | "sleep" | "ai" | "metrics";
 
 type Brief = { emoji: string; mood: string; message: string; tips: string[] };
 
@@ -254,7 +254,7 @@ function NowNext({
           <p className="mt-2 font-serif text-3xl leading-tight">{target.title}</p>
           <p className="mt-1 text-sm opacity-60">
             {meta}
-            {target.routine_id && " · рутина"}
+            {target.routine_id && " · повтор"}
             {target.subtasks.length > 0 &&
               ` · ${target.subtasks.filter((st) => st.done).length}/${target.subtasks.length}`}
           </p>
@@ -367,7 +367,17 @@ function Timeline({
 function QuickActions({ onAdd, onGo }: { onAdd: () => void; onGo: (s: Section) => void }) {
   const items = [
     { label: "Дело", icon: Plus, action: onAdd, primary: true },
-    { label: "Рутины", icon: CalendarClock, action: () => onGo("routine") },
+    {
+      label: "Повторы",
+      icon: CalendarClock,
+      action: () => {
+        onGo("plans");
+        setTimeout(
+          () => document.getElementById("repeats")?.scrollIntoView({ behavior: "smooth" }),
+          100,
+        );
+      },
+    },
     { label: "Сон", icon: Moon, action: () => onGo("sleep") },
     { label: "Метрики", icon: Ruler, action: () => onGo("metrics") },
   ];

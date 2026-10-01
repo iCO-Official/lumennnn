@@ -280,6 +280,10 @@ export function PlansSection() {
           />
         )}
       </AppSheet>
+
+      <div id="repeats" className="scroll-mt-4 pt-6">
+        <RoutinesSection />
+      </div>
     </section>
   );
 }
@@ -395,7 +399,7 @@ function TaskGroup({
                 </span>
                 {task.routine_id && (
                   <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Repeat className="h-3 w-3" /> Рутина
+                    <Repeat className="h-3 w-3" /> Повтор
                   </span>
                 )}
               </span>
@@ -565,7 +569,9 @@ export function TaskEditor({
   const [title, setTitle] = useState(task?.title ?? "");
   const [date, setDate] = useState(task?.scheduled_for ?? defaultDate);
   const [time, setTime] = useState(task?.scheduled_time?.slice(0, 5) ?? "");
-  const [repeat, setRepeat] = useState<"none" | "daily" | "custom">("none");
+  const [repeat, setRepeat] = useState<"none" | "daily" | "weekdays" | "weekends" | "custom">(
+    "none",
+  );
   const [days, setDays] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<"one" | "list">("one");
@@ -608,7 +614,15 @@ export function TaskEditor({
           });
       } else {
         const repeatDays =
-          repeat === "daily" ? [0, 1, 2, 3, 4, 5, 6] : repeat === "custom" ? days : [];
+          repeat === "daily"
+            ? [0, 1, 2, 3, 4, 5, 6]
+            : repeat === "weekdays"
+              ? [1, 2, 3, 4, 5]
+              : repeat === "weekends"
+                ? [0, 6]
+                : repeat === "custom"
+                  ? days
+                  : [];
         const items = mode === "list" ? listItems : [{ title: title.trim(), time: time || null }];
         for (const [index, item] of items.entries())
           await createTask({
@@ -631,7 +645,7 @@ export function TaskEditor({
     <form onSubmit={save}>
       <div className="mb-5 flex items-center justify-between">
         <h3 className="font-serif text-2xl">
-          {task ? (seriesEdit ? "Изменить рутину" : "Изменить задачу") : "Новые дела"}
+          {task ? (seriesEdit ? "Изменить все повторы" : "Изменить задачу") : "Новые дела"}
         </h3>
         <Button type="button" variant="ghost" size="icon" onClick={onClose}>
           <X />
@@ -737,6 +751,8 @@ export function TaskEditor({
               >
                 <option value="none">Нет</option>
                 <option value="daily">Каждый день</option>
+                <option value="weekdays">По будням</option>
+                <option value="weekends">По выходным</option>
                 <option value="custom">Выбранные дни</option>
               </select>
             </label>
@@ -772,14 +788,14 @@ function ScopeDialog({
         {action.mode === "edit" ? "Что изменить?" : "Что удалить?"}
       </h3>
       <p className="mt-2 text-sm text-muted-foreground">
-        Это дело из рутины. Прошедшие и выполненные дни не изменятся.
+        Это повторяющееся дело. Прошедшие и выполненные дни не изменятся.
       </p>
       <div className="mt-5 space-y-2">
         <Button className="h-11 w-full" onClick={onToday}>
           {action.mode === "edit" ? "Только этот день" : "Пропустить этот день"}
         </Button>
         <Button className="h-11 w-full" variant="secondary" onClick={onFuture}>
-          {action.mode === "edit" ? "Этот и следующие" : "Удалить рутину с этого дня"}
+          {action.mode === "edit" ? "Этот и следующие" : "Удалить все повторы с этого дня"}
         </Button>
         <Button className="h-11 w-full" variant="ghost" onClick={onCancel}>
           Отмена
@@ -822,7 +838,9 @@ export function RoutinesSection() {
     try {
       setRoutines(await loadRoutines());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось загрузить рутины");
+      toast.error(
+        error instanceof Error ? error.message : "Не удалось загрузить повторяющиеся дела",
+      );
     } finally {
       setLoading(false);
     }
@@ -874,10 +892,16 @@ export function RoutinesSection() {
     <section className="space-y-5">
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-xs text-muted-foreground">Повторяющиеся дела</p>
-          <h2 className="font-serif text-3xl">Рутины</h2>
+          <p className="text-xs text-muted-foreground">Сами появляются в планах</p>
+          <h2 className="font-serif text-2xl">Повторяющиеся</h2>
         </div>
-        <Button size="icon" className="rounded-full" onClick={() => setCreating(true)}>
+        <Button
+          size="icon"
+          variant="secondary"
+          className="rounded-full"
+          onClick={() => setCreating(true)}
+          aria-label="Добавить повторяющееся дело"
+        >
           <Plus />
         </Button>
       </div>
@@ -885,7 +909,7 @@ export function RoutinesSection() {
         <div className="py-16 text-center text-sm text-muted-foreground">Загрузка…</div>
       ) : routines.length === 0 ? (
         <div className="rounded-2xl bg-card py-12 text-center text-sm text-muted-foreground">
-          Добавь первую рутину
+          Пока нет. Нажми + или попроси ИИ: «каждый будний день в 7:00 зарядка»
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnd}>
@@ -1020,7 +1044,9 @@ function RoutineEditor({
   return (
     <form onSubmit={save}>
       <div className="mb-5 flex items-center justify-between">
-        <h3 className="font-serif text-2xl">{routine ? "Изменить рутину" : "Новая рутина"}</h3>
+        <h3 className="font-serif text-2xl">
+          {routine ? "Изменить повтор" : "Повторяющееся дело"}
+        </h3>
         <Button type="button" variant="ghost" size="icon" onClick={onClose}>
           <X />
         </Button>

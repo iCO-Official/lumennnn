@@ -1,7 +1,6 @@
-import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { Check, ImagePlus, Plus, Settings, Sparkles, X } from "lucide-react";
+import { Check, ImagePlus, Plus, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Conversation,
@@ -254,13 +253,6 @@ export function LumenAiChat() {
           >
             <Plus className="h-6 w-6" />
           </button>
-          <Link
-            to="/app/settings"
-            aria-label="Настройки"
-            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-card"
-          >
-            <Settings className="h-6 w-6" />
-          </Link>
         </div>
       </header>
 
@@ -407,10 +399,10 @@ function ProposalCard({
       ? "Создать задачу"
       : proposal.kind === "update_task"
         ? proposal.allFuture
-          ? "Изменить рутину"
+          ? "Изменить все повторы"
           : "Изменить задачу"
         : proposal.repeatDays?.length
-          ? "Добавить рутину"
+          ? "Добавить повторяющиеся дела"
           : "Добавить расписание";
   const scheduleRepeat =
     proposal.kind === "schedule" && proposal.repeatDays?.length
