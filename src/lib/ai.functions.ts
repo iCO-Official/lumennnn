@@ -73,7 +73,51 @@ export type AiProposal =
       date: string;
       time: string | null;
     }
-  | { kind: "schedule"; date: string; items: { title: string; time: string | null }[] };
+  | {
+      kind: "schedule";
+      date: string;
+      /** Weekdays (0=Вс…6=Сб) every item repeats on; empty/missing = one-off tasks. */
+      repeatDays?: number[];
+      items: { title: string; time: string | null; date?: string; repeatDays?: number[] }[];
+    };
+
+type ScheduleItem = Extract<AiProposal, { kind: "schedule" }>["items"][number];
+
+/**
+ * The model sometimes proposes a multi-item plan as several calls. Combine
+ * every "create" proposal of one reply into a single schedule card so nothing
+ * is lost; an update proposal only survives on its own.
+ */
+function mergeProposals(proposals: AiProposal[]): AiProposal | null {
+  if (proposals.length <= 1) return proposals[0] ?? null;
+  const creates = proposals.filter((p) => p.kind !== "update_task");
+  if (!creates.length) return proposals[proposals.length - 1];
+  if (creates.length === 1) return creates[0];
+  const items: ScheduleItem[] = creates.flatMap((p) =>
+    p.kind === "create_task"
+      ? [{ title: p.title, time: p.time, date: p.date, repeatDays: p.repeatDays ?? [] }]
+      : p.kind === "schedule"
+        ? p.items.map((item) => ({
+            ...item,
+            date: item.date ?? p.date,
+            repeatDays: item.repeatDays ?? p.repeatDays ?? [],
+          }))
+        : [],
+  );
+  items.sort((a, b) => (a.time ?? "99").localeCompare(b.time ?? "99"));
+  const dates = items
+    .map((item) => item.date ?? "")
+    .filter(Boolean)
+    .sort();
+  return { kind: "schedule", date: dates[0] ?? "", items: items.slice(0, 30) };
+}
+
+/** Normalizes model-supplied weekday numbers (0=Вс…6=Сб). */
+function weekdays(value: unknown) {
+  return Array.isArray(value)
+    ? [...new Set(value.map(Number))].filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    : [];
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -117,6 +161,16 @@ const localDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .nullish();
+
+const WEEKDAY_NAMES = [
+  "воскресенье",
+  "понедельник",
+  "вторник",
+  "среда",
+  "четверг",
+  "пятница",
+  "суббота",
+];
 
 function dayInfo(today?: string | null) {
   const iso = today ?? new Date().toISOString().slice(0, 10);
@@ -234,7 +288,10 @@ export const chatWithAi = createServerFn({ method: "POST" })
     const messages: Msg[] = [
       {
         role: "system",
-        content: system + `\n\nСегодня ${dayInfo(data.today).iso}.\n` + ROUTINE_TOOLS_HINT,
+        content:
+          system +
+          `\n\nСегодня ${dayInfo(data.today).iso}, ${WEEKDAY_NAMES[dayInfo(data.today).dow]} (день недели ${dayInfo(data.today).dow}).\n` +
+          ROUTINE_TOOLS_HINT,
       },
       // Photo-only messages are stored with empty text; old photos are not re-sent to the model.
       ...(history ?? [])
@@ -252,7 +309,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
     ];
 
     let reply = "";
-    let proposal: AiProposal | null = null;
+    const proposals: AiProposal[] = [];
     for (let step = 0; step < 5; step++) {
       const m = await rawGateway(messages, ROUTINE_TOOLS);
       if (m.tool_calls?.length) {
@@ -267,7 +324,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
               JSON.parse(call.function.arguments || "{}"),
             );
             result = toolResult.result;
-            if (toolResult.proposal) proposal = toolResult.proposal;
+            if (toolResult.proposal) proposals.push(toolResult.proposal);
           } catch (e) {
             result = { error: e instanceof Error ? e.message : "ошибка" };
           }
@@ -279,6 +336,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
       break;
     }
     if (!reply) reply = "Готово.";
+    const proposal = mergeProposals(proposals);
 
     const rows: Database["public"]["Tables"]["ai_messages"]["Insert"][] = [
       {
@@ -310,6 +368,8 @@ const ROUTINE_TOOLS_HINT = `Ты помогаешь планировать, но
 Когда пользователь просит создать задачу, составить расписание или перенести дело, используй подходящий инструмент предложения.
 Инструмент только формирует карточку подтверждения. Скажи коротко, что предлагаешь, и попроси подтвердить.
 Дата строго YYYY-MM-DD, время HH:MM или пустая строка. Для поиска существующего дела сначала используй list_tasks.
+Если пользователь просит расписание или распорядок из нескольких пунктов, вызови propose_schedule ОДИН раз со ВСЕМИ пунктами сразу — никогда не добавляй по одному и не говори «добавлю по очереди».
+Если расписание повторяется (каждый день, по будням, по выходным, «каждое утро»), передай repeat_days: будни = [1,2,3,4,5], выходные = [0,6], каждый день = [0,1,2,3,4,5,6]. Тогда пункты станут рутинами. date — первый подходящий день начиная с сегодня.
 Подзадачи (subtasks) добавляй только когда пользователь сам перечислил, из чего состоит задача; сами их не придумывай.`;
 
 const ROUTINE_TOOLS = [
@@ -332,7 +392,8 @@ const ROUTINE_TOOLS = [
     type: "function",
     function: {
       name: "propose_schedule",
-      description: "Предложить несколько одноразовых задач на конкретную дату",
+      description:
+        "Предложить расписание из нескольких пунктов (все пункты в одном вызове). С repeat_days пункты становятся повторяющимися рутинами, без — одноразовыми задачами на date.",
       parameters: {
         type: "object",
         properties: {
@@ -348,8 +409,13 @@ const ROUTINE_TOOLS = [
               required: ["title", "time"],
             },
           },
+          repeat_days: {
+            type: "array",
+            items: { type: "integer" },
+            description: "0=Вс…6=Сб; будни = [1,2,3,4,5]; пусто для одноразового расписания",
+          },
         },
-        required: ["date", "items"],
+        required: ["date", "items", "repeat_days"],
       },
     },
   },
@@ -429,9 +495,11 @@ async function runRoutineTool(
     const proposal: AiProposal = {
       kind: "schedule",
       date: String(args.date),
+      repeatDays: weekdays(args.repeat_days),
       items: (Array.isArray(args.items) ? (args.items as ToolArgs[]) : [])
+        .filter((item) => item && String(item.title ?? "").trim())
         .slice(0, 30)
-        .map((item) => ({ title: String(item.title).slice(0, 200), time: time(item.time) })),
+        .map((item) => ({ title: String(item.title).trim().slice(0, 200), time: time(item.time) })),
     };
     return { result: { proposed: true, count: proposal.items.length }, proposal };
   }
@@ -442,11 +510,7 @@ async function runRoutineTool(
       title: String(args.title).slice(0, 200),
       date: String(args.date),
       time: time(args.time),
-      repeatDays: Array.isArray(args.repeat_days)
-        ? args.repeat_days.filter(
-            (day: unknown) => Number.isInteger(day) && Number(day) >= 0 && Number(day) <= 6,
-          )
-        : [],
+      repeatDays: weekdays(args.repeat_days),
       subtasks: Array.isArray(args.subtasks)
         ? args.subtasks
             .map((item) => String(item).trim().slice(0, 200))

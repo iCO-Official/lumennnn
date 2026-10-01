@@ -44,3 +44,17 @@ export function parseScheduleLines(text: string) {
       return { time: null, title: line };
     });
 }
+
+const REPEAT_SHORT_DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+
+/** "Каждый день", "По будням", "Пн · Ср · Пт" … for weekday numbers 0=Вс…6=Сб. */
+export function repeatLabel(days: number[]) {
+  const set = new Set(days);
+  if (set.size === 7) return "Каждый день";
+  if (set.size === 5 && [1, 2, 3, 4, 5].every((d) => set.has(d))) return "По будням";
+  if (set.size === 2 && set.has(0) && set.has(6)) return "По выходным";
+  return [1, 2, 3, 4, 5, 6, 0]
+    .filter((d) => set.has(d))
+    .map((d) => REPEAT_SHORT_DAYS[d])
+    .join(" · ");
+}
