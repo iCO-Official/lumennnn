@@ -1,19 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LumenLogo } from "@/components/lumen-logo";
-import {
-  Calendar,
-  NotebookPen,
-  Sparkles,
-  CalendarClock,
-  Settings as SettingsIcon,
-  Home,
-} from "lucide-react";
-import {
-  PlansSection as PlannerPlansSection,
-  RoutinesSection as PlannerRoutinesSection,
-} from "@/components/planner-sections";
+import { Calendar, NotebookPen, Sparkles, Settings as SettingsIcon, Home } from "lucide-react";
+import { PlansSection as PlannerPlansSection } from "@/components/planner-sections";
 import { HomeSection, greeting, todayLabel, type Section } from "@/components/app/home";
 
 // Heavier tabs (markdown renderer, charts) load in the background, off the startup path.
@@ -25,6 +15,9 @@ const JournalSection = lazy(() =>
 );
 const SleepSection = lazy(() =>
   import("@/components/app/journal").then((m) => ({ default: m.SleepSection })),
+);
+const SettingsView = lazy(() =>
+  import("@/components/app/settings").then((m) => ({ default: m.SettingsView })),
 );
 const MetricsSection = lazy(() =>
   import("@/components/app/metrics").then((m) => ({ default: m.MetricsSection })),
@@ -42,9 +35,9 @@ const SECTIONS: {
 }[] = [
   { id: "home", label: "Сегодня", icon: Home },
   { id: "plans", label: "Планы", icon: Calendar },
-  { id: "routine", label: "Рутины", icon: CalendarClock },
   { id: "journal", label: "Дневник", icon: NotebookPen },
   { id: "ai", label: "AI", icon: Sparkles },
+  { id: "settings", label: "Настройки", icon: SettingsIcon },
 ];
 
 // Tab order, so switching slides in the direction of the tapped tab.
@@ -53,9 +46,9 @@ const ORDER: Record<Section, number> = {
   sleep: 0.5,
   metrics: 0.5,
   plans: 1,
-  routine: 2,
-  journal: 3,
-  ai: 4,
+  journal: 2,
+  ai: 3,
+  settings: 4,
 };
 
 function AppPage() {
@@ -85,7 +78,7 @@ function AppPage() {
     () => ({
       home: <HomeSection onGo={setSection} />,
       plans: <PlannerPlansSection />,
-      routine: <PlannerRoutinesSection />,
+      settings: <SettingsView />,
       journal: <JournalSection />,
       sleep: <SleepSection />,
       metrics: <MetricsSection />,
@@ -202,7 +195,7 @@ function AppPage() {
     const timer = setTimeout(() => {
       setVisited((list) => [
         ...list,
-        ...(["plans", "routine", "journal", "ai"] as Section[]).filter((id) => !list.includes(id)),
+        ...(["plans", "journal", "ai", "settings"] as Section[]).filter((id) => !list.includes(id)),
       ]);
     }, 1500);
     return () => clearTimeout(timer);
@@ -226,24 +219,15 @@ function AppPage() {
   return (
     <div className="relative min-h-app bg-background text-foreground">
       {section !== "ai" && (
-        <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-2 sm:px-8 sm:pt-4">
+        <header className="relative z-10 mx-auto flex h-14 max-w-4xl items-center px-5 pt-2 sm:px-8 sm:pt-4">
           <LumenLogo />
-          <div className="flex items-center gap-2">
-            <Link
-              to="/app/settings"
-              aria-label="Настройки"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-card transition-colors hover:bg-accent"
-            >
-              <SettingsIcon className="h-6 w-6" />
-            </Link>
-          </div>
         </header>
       )}
 
       <main
         className={`relative z-10 mx-auto max-w-4xl ${section === "ai" ? "" : "px-5 pb-36 pt-3 sm:px-8 sm:pt-6"}`}
       >
-        {section !== "ai" && (
+        {section !== "ai" && section !== "settings" && (
           <div className="mb-5">
             <div className="text-sm text-muted-foreground">
               <span translate="no">{greeting()}</span>
