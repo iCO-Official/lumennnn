@@ -17,10 +17,11 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, GripVertical, Pencil, Plus, Repeat, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, GripVertical, Pencil, Plus, Repeat, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useHideDone } from "@/lib/use-hide-done";
 import { AppSheet } from "@/components/ui/app-sheet";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -302,14 +303,17 @@ function TaskList({
   onEdit: (task: PlannerTask) => void;
   onDelete: (task: PlannerTask) => void;
 }) {
-  const timed = tasks
+  const [hideDone, toggleHideDone] = useHideDone();
+  const doneCount = tasks.filter((task) => task.completed).length;
+  const shown = hideDone ? tasks.filter((task) => !task.completed) : tasks;
+  const timed = shown
     .filter((task) => task.scheduled_time)
     .sort(
       (a, b) =>
         (a.scheduled_time ?? "").localeCompare(b.scheduled_time ?? "") ||
         a.sort_order - b.sort_order,
     );
-  const untimed = tasks
+  const untimed = shown
     .filter((task) => !task.scheduled_time)
     .sort((a, b) => a.sort_order - b.sort_order);
   if (!tasks.length)
@@ -320,13 +324,33 @@ function TaskList({
     );
   return (
     <div className="space-y-7">
-      <TaskGroup
-        tasks={timed}
-        onToggle={onToggle}
-        onToggleSubtask={onToggleSubtask}
-        onEdit={onEdit}
-        onDelete={onDelete}
-      />
+      {doneCount > 0 && (
+        <button
+          type="button"
+          onClick={toggleHideDone}
+          className="-mb-3 flex w-full items-center justify-between rounded-2xl bg-card px-4 py-3 text-sm"
+        >
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <Check className="h-4 w-4" />
+            Выполнено: {doneCount}
+          </span>
+          <span className="flex items-center gap-1">
+            {hideDone ? "Показать" : "Свернуть"}
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-200 ${hideDone ? "" : "rotate-180"}`}
+            />
+          </span>
+        </button>
+      )}
+      {timed.length > 0 && (
+        <TaskGroup
+          tasks={timed}
+          onToggle={onToggle}
+          onToggleSubtask={onToggleSubtask}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      )}
       {untimed.length > 0 && (
         <div>
           <h3 className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
