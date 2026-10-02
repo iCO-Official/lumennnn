@@ -5,6 +5,7 @@ import {
   Bell,
   CalendarClock,
   Check,
+  ChevronDown,
   ChevronRight,
   Moon,
   Plus,
@@ -32,6 +33,7 @@ import {
   type PlannerTask,
 } from "@/lib/planner";
 import { AppSheet } from "@/components/ui/app-sheet";
+import { useHideDone } from "@/lib/use-hide-done";
 import { SubtaskCount, SubtaskList, TaskEditor } from "@/components/planner-sections";
 
 export type Section = "home" | "plans" | "settings" | "journal" | "sleep" | "ai" | "metrics";
@@ -303,8 +305,11 @@ function Timeline({
       ),
     [tasks],
   );
-  const timed = sorted.filter((t) => t.scheduled_time);
-  const untimed = sorted.filter((t) => !t.scheduled_time);
+  const [hideDone, toggleHideDone] = useHideDone();
+  const doneCount = tasks.filter((t) => t.completed).length;
+  const shown = hideDone ? sorted.filter((t) => !t.completed) : sorted;
+  const timed = shown.filter((t) => t.scheduled_time);
+  const untimed = shown.filter((t) => !t.scheduled_time);
   // Same focus as the "Сейчас / Дальше" card; earlier unfinished items are "missed".
   const { current, next, waiting } = pickFocus(tasks, nowMin);
   const focusId = (current ?? next)?.task.id;
@@ -351,6 +356,23 @@ function Timeline({
       >
         План на день <ChevronRight className="h-4 w-4" />
       </button>
+      {doneCount > 0 && (
+        <button
+          onClick={toggleHideDone}
+          className="flex w-full items-center justify-between px-4 pb-2 text-xs text-muted-foreground"
+        >
+          <span className="flex items-center gap-1.5">
+            <Check className="h-3.5 w-3.5" />
+            Выполнено: {doneCount}
+          </span>
+          <span className="flex items-center gap-1 text-foreground">
+            {hideDone ? "Показать" : "Свернуть"}
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform duration-200 ${hideDone ? "" : "rotate-180"}`}
+            />
+          </span>
+        </button>
+      )}
       <ul className="divide-y divide-border">{timed.map((t) => row(t, t.id === focusId))}</ul>
       {untimed.length > 0 && (
         <>
