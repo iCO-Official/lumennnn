@@ -143,6 +143,7 @@ const dict: Record<string, string> = {
   "Загрузка…": "Chargement…",
   "Задачи закрыты": "Tâches bouclées",
   "Закончились AI-кредиты.": "Plus de crédits IA.",
+  "Закрепить справа": "Ancrer à droite",
   "Закрыть проект": "Boucler le projet",
   Записано: "Enregistré",
   Записать: "Enregistrer",
@@ -229,6 +230,8 @@ const dict: Record<string, string> = {
   "Одно дело": "Une tâche",
   "Осталось {0}": "Encore {0}",
   "Осталось дел: {0}": "Tâches restantes : {0}",
+  "Открепить в окно": "Détacher dans une fenêtre",
+  "Открыть чат": "Ouvrir la discussion",
   Отмена: "Annuler",
   "Отмечай время отхода и подъёма. Lumen строит линию качества сна за месяц.":
     "Note l'heure du coucher et du lever. Lumen trace la qualité de ton sommeil sur le mois.",
@@ -273,6 +276,8 @@ const dict: Record<string, string> = {
   "Попроси поставить задачу, составить план или перенести дело.":
     "Demande d'ajouter une tâche, de faire un plan ou de déplacer quelque chose.",
   "Последние матчи": "Derniers matchs",
+  "Потяни, чтобы изменить размер": "Fais glisser pour redimensionner",
+  "Потяни, чтобы изменить ширину": "Fais glisser pour changer la largeur",
   Предложение: "Proposition",
   "Привет, я рядом": "Salut, je suis là",
   Приложение: "Application",
@@ -320,6 +325,7 @@ const dict: Record<string, string> = {
   Синхронизировать: "Synchroniser",
   "Синхронизирую…": "Synchronisation…",
   "Скрыть советы": "Masquer les conseils",
+  "Скрыть чат": "Masquer la discussion",
   "Слишком много запросов к AI. Попробуй через минуту.":
     "Trop de requêtes à l'IA. Réessaie dans une minute.",
   "Собираю мысли про твой день…": "Je réfléchis à ta journée…",

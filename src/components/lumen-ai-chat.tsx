@@ -1,6 +1,25 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { Check, ImagePlus, Plus, Sparkles, X } from "lucide-react";
+import {
+  Check,
+  ImagePlus,
+  Minus,
+  PanelRight,
+  PictureInPicture2,
+  Plus,
+  Sparkles,
+  X,
+} from "lucide-react";
+import {
+  DOCK_MIN,
+  FLOAT_MIN,
+  WIDE_QUERY,
+  maxDockWidth,
+  setChatLayout,
+  useChatLayout,
+  useMediaQuery,
+  type ChatLayout,
+} from "@/lib/chat-layout";
 import { toast } from "sonner";
 import { AI_AUTO_APPLY_KEY, readLocalFlag, useLocalFlag } from "@/lib/use-local-flag";
 import {
@@ -79,6 +98,15 @@ export function LumenAiChat() {
   const [image, setImage] = useState<PickedImage | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [autoApply, setAutoApply] = useLocalFlag(AI_AUTO_APPLY_KEY);
+  const wide = useMediaQuery(WIDE_QUERY);
+  const layout = useChatLayout();
+  // Re-clamp the floating window when the browser window changes size.
+  const [, setViewport] = useState(0);
+  useEffect(() => {
+    const onResize = () => setViewport((n) => n + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -229,173 +257,305 @@ export function LumenAiChat() {
     }
   }
 
+  const floating = wide && layout.mode === "float";
+  const docked = wide && layout.mode === "dock";
+  const box = floatBox(layout);
+
+  // Drags the window (header) or resizes the panel / window (edge, corner).
+  function startDrag(e: React.PointerEvent, kind: "move" | "dock-resize" | "float-resize") {
+    if (e.button !== 0) return;
+    if (kind === "move" && (e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
+    const start = { x: e.clientX, y: e.clientY, ...box, width: layout.width };
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - start.x;
+      const dy = ev.clientY - start.y;
+      if (kind === "dock-resize")
+        setChatLayout({ width: clamp(start.width - dx, DOCK_MIN, maxDockWidth()) });
+      else if (kind === "move")
+        setChatLayout({
+          x: clamp(start.left + dx, 0, window.innerWidth - start.w),
+          y: clamp(start.top + dy, 0, window.innerHeight - 80),
+        });
+      else
+        setChatLayout({
+          w: clamp(start.w + dx, FLOAT_MIN.w, window.innerWidth - start.left),
+          h: clamp(start.h + dy, FLOAT_MIN.h, window.innerHeight - start.top),
+        });
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    document.body.style.userSelect = "none";
+    document.body.style.cursor =
+      kind === "dock-resize" ? "col-resize" : kind === "move" ? "grabbing" : "nwse-resize";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp, { once: true });
+  }
+
   return (
-    <section
-      data-ai-chat
-      // Phone: full screen above the tab bar. Computer: right of the sidebar.
-      // Wide screens: docked as a panel on the right, always open.
-      className="fixed inset-x-0 bottom-[calc(var(--nav-h,calc(4.5rem+env(safe-area-inset-bottom)))-var(--vv-gap,0px))] top-0 z-20 mx-auto flex max-w-4xl flex-col bg-background pt-[env(safe-area-inset-top)] md:left-60 xl:left-auto xl:right-0 xl:w-[400px] xl:max-w-none xl:border-l xl:border-border"
-    >
-      <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-border px-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          <div>
-            <h2 className="text-sm font-semibold">Lumen AI</h2>
-            <p className="text-[11px] text-muted-foreground">{tr("Помощник по твоему дню")}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={clear}
-            aria-label={tr("Новый чат")}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-card"
+    <>
+      {wide && layout.mode === "hidden" && (
+        <button
+          type="button"
+          onClick={() => setChatLayout({ mode: layout.last })}
+          aria-label={tr("Открыть чат")}
+          className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-foreground text-background shadow-2xl transition-transform hover:scale-105"
+        >
+          <Sparkles className="h-6 w-6" />
+        </button>
+      )}
+      <section
+        data-ai-chat
+        // Phone: full screen above the tab bar. Computer: right of the sidebar.
+        // Wide screens: a resizable panel on the right, a movable window, or hidden.
+        className={`fixed inset-x-0 bottom-[calc(var(--nav-h,calc(4.5rem+env(safe-area-inset-bottom)))-var(--vv-gap,0px))] top-0 z-20 mx-auto flex max-w-4xl flex-col bg-background pt-[env(safe-area-inset-top)] md:left-60 ${
+          docked ? "border-l border-border" : ""
+        } ${floating ? "overflow-hidden rounded-3xl border border-border shadow-2xl shadow-black/50" : ""}`}
+        style={
+          !wide
+            ? undefined
+            : docked
+              ? { left: "auto", right: 0, top: 0, bottom: 0, width: layout.width, maxWidth: "none" }
+              : floating
+                ? {
+                    left: box.left,
+                    top: box.top,
+                    width: box.w,
+                    height: box.h,
+                    right: "auto",
+                    bottom: "auto",
+                    maxWidth: "none",
+                    zIndex: 45,
+                  }
+                : { display: "none" }
+        }
+      >
+        {docked && (
+          <div
+            onPointerDown={(e) => startDrag(e, "dock-resize")}
+            className="group absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize"
+            title={tr("Потяни, чтобы изменить ширину")}
           >
-            <Plus className="h-6 w-6" />
-          </button>
-        </div>
-      </header>
-
-      <Conversation className="min-h-0">
-        <ConversationContent className="mx-auto w-full max-w-3xl gap-5 px-4 py-6">
-          {loading ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">
-              {tr("Загружаю разговор…")}
-            </p>
-          ) : messages.length === 0 ? (
-            <ConversationEmptyState
-              icon={<Sparkles className="h-8 w-8" />}
-              title={tr("Привет, я рядом")}
-              description={tr("Попроси поставить задачу, составить план или перенести дело.")}
-            />
-          ) : (
-            messages.map((message, index) => (
-              <Message key={message.id ?? index} from={message.role}>
-                {message.imageUrl && (
-                  <img
-                    src={message.imageUrl}
-                    alt={tr("Фото")}
-                    className={`max-h-72 max-w-[75%] rounded-2xl object-cover ${message.role === "user" ? "ml-auto" : ""}`}
-                  />
-                )}
-                {message.content && (
-                  <MessageContent
-                    className={
-                      message.role === "user"
-                        ? "rounded-2xl bg-foreground text-background"
-                        : "text-[15px] leading-relaxed"
-                    }
-                  >
-                    <MessageResponse>{message.content}</MessageResponse>
-                  </MessageContent>
-                )}
-                {message.proposal && (
-                  <ProposalCard
-                    proposal={message.proposal}
-                    applying={applying === index}
-                    onConfirm={() => void applyProposal(message.proposal!, index)}
-                    onAlways={
-                      autoApply || wipesEverything(message.proposal)
-                        ? undefined
-                        : () => {
-                            setAutoApply(true);
-                            toast.success(
-                              tr("Теперь AI будет применять сразу. Выключить — в Настройках"),
-                            );
-                            void applyProposal(message.proposal!, index);
-                          }
-                    }
-                    onCancel={() => {
-                      setMessages((current) =>
-                        current.map((item, i) =>
-                          i === index ? { ...item, proposal: null } : item,
-                        ),
-                      );
-                      if (message.id)
-                        void supabase
-                          .from("ai_messages")
-                          .update({ proposal: null })
-                          .eq("id", message.id);
-                    }}
-                  />
-                )}
-              </Message>
-            ))
-          )}
-          {sending && (
-            <Message from="assistant">
-              <MessageContent className="text-muted-foreground">{tr("Думаю…")}</MessageContent>
-            </Message>
-          )}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
-
-      <div className="shrink-0 border-t border-border bg-background px-3 py-3">
-        <PromptInput onSubmit={submit} className="mx-auto max-w-3xl rounded-2xl bg-card">
-          {image && (
-            <div className="relative m-2 mb-0 w-fit">
-              <img
-                src={image.previewUrl}
-                alt={tr("Выбранное фото")}
-                className="h-20 w-20 rounded-xl object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  URL.revokeObjectURL(image.previewUrl);
-                  setImage(null);
-                }}
-                aria-label={tr("Убрать фото")}
-                className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-foreground text-background"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+            <span className="mx-auto block h-full w-px bg-transparent transition-colors group-hover:bg-foreground/40" />
+          </div>
+        )}
+        {floating && (
+          <div
+            onPointerDown={(e) => startDrag(e, "float-resize")}
+            className="absolute bottom-0 right-0 z-10 h-5 w-5 cursor-nwse-resize"
+            title={tr("Потяни, чтобы изменить размер")}
+          >
+            <span className="absolute bottom-1.5 right-1.5 h-2 w-2 rounded-br-sm border-b-2 border-r-2 border-muted-foreground/60" />
+          </div>
+        )}
+        <header
+          onPointerDown={floating ? (e) => startDrag(e, "move") : undefined}
+          className={`flex h-[72px] shrink-0 items-center justify-between border-b border-border px-4 ${floating ? "cursor-grab" : ""}`}
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold">Lumen AI</h2>
+              <p className="text-[11px] text-muted-foreground">{tr("Помощник по твоему дню")}</p>
             </div>
-          )}
-          <PromptInputBody>
-            <PromptInputTextarea
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder={tr("Напиши Lumen…")}
-              className="min-h-12 text-base"
-            />
-          </PromptInputBody>
-          <PromptInputFooter className="justify-between">
-            <input
-              ref={fileInput}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => {
-                void pickImage(event.target.files?.[0]);
-                event.target.value = "";
-              }}
-            />
-            <PromptInputButton
-              onClick={() => fileInput.current?.click()}
-              aria-label={tr("Добавить фото")}
-              disabled={sending}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={clear}
+              aria-label={tr("Новый чат")}
+              className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-card"
             >
-              <ImagePlus />
-            </PromptInputButton>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground">
-                {tr("AI сначала предложит изменения")}
-              </span>
-              <PromptInputSubmit
-                disabled={(!text.trim() && !image) || sending}
-                status={sending ? "submitted" : "ready"}
-                className="h-9 w-9 rounded-full"
+              <Plus className="h-6 w-6" />
+            </button>
+            {wide && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setChatLayout({ mode: floating ? "dock" : "float" })}
+                  aria-label={floating ? tr("Закрепить справа") : tr("Открепить в окно")}
+                  title={floating ? tr("Закрепить справа") : tr("Открепить в окно")}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+                >
+                  {floating ? (
+                    <PanelRight className="h-5 w-5" />
+                  ) : (
+                    <PictureInPicture2 className="h-5 w-5" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChatLayout({ mode: "hidden" })}
+                  aria-label={tr("Скрыть чат")}
+                  title={tr("Скрыть чат")}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+                >
+                  <Minus className="h-5 w-5" />
+                </button>
+              </>
+            )}
+          </div>
+        </header>
+
+        <Conversation className="min-h-0">
+          <ConversationContent className="mx-auto w-full max-w-3xl gap-5 px-4 py-6">
+            {loading ? (
+              <p className="py-16 text-center text-sm text-muted-foreground">
+                {tr("Загружаю разговор…")}
+              </p>
+            ) : messages.length === 0 ? (
+              <ConversationEmptyState
+                icon={<Sparkles className="h-8 w-8" />}
+                title={tr("Привет, я рядом")}
+                description={tr("Попроси поставить задачу, составить план или перенести дело.")}
               />
-            </div>
-          </PromptInputFooter>
-        </PromptInput>
-      </div>
-    </section>
+            ) : (
+              messages.map((message, index) => (
+                <Message key={message.id ?? index} from={message.role}>
+                  {message.imageUrl && (
+                    <img
+                      src={message.imageUrl}
+                      alt={tr("Фото")}
+                      className={`max-h-72 max-w-[75%] rounded-2xl object-cover ${message.role === "user" ? "ml-auto" : ""}`}
+                    />
+                  )}
+                  {message.content && (
+                    <MessageContent
+                      className={
+                        message.role === "user"
+                          ? "rounded-2xl bg-foreground text-background"
+                          : "text-[15px] leading-relaxed"
+                      }
+                    >
+                      <MessageResponse>{message.content}</MessageResponse>
+                    </MessageContent>
+                  )}
+                  {message.proposal && (
+                    <ProposalCard
+                      proposal={message.proposal}
+                      applying={applying === index}
+                      onConfirm={() => void applyProposal(message.proposal!, index)}
+                      onAlways={
+                        autoApply || wipesEverything(message.proposal)
+                          ? undefined
+                          : () => {
+                              setAutoApply(true);
+                              toast.success(
+                                tr("Теперь AI будет применять сразу. Выключить — в Настройках"),
+                              );
+                              void applyProposal(message.proposal!, index);
+                            }
+                      }
+                      onCancel={() => {
+                        setMessages((current) =>
+                          current.map((item, i) =>
+                            i === index ? { ...item, proposal: null } : item,
+                          ),
+                        );
+                        if (message.id)
+                          void supabase
+                            .from("ai_messages")
+                            .update({ proposal: null })
+                            .eq("id", message.id);
+                      }}
+                    />
+                  )}
+                </Message>
+              ))
+            )}
+            {sending && (
+              <Message from="assistant">
+                <MessageContent className="text-muted-foreground">{tr("Думаю…")}</MessageContent>
+              </Message>
+            )}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+
+        <div className="shrink-0 border-t border-border bg-background px-3 py-3">
+          <PromptInput onSubmit={submit} className="mx-auto max-w-3xl rounded-2xl bg-card">
+            {image && (
+              <div className="relative m-2 mb-0 w-fit">
+                <img
+                  src={image.previewUrl}
+                  alt={tr("Выбранное фото")}
+                  className="h-20 w-20 rounded-xl object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    URL.revokeObjectURL(image.previewUrl);
+                    setImage(null);
+                  }}
+                  aria-label={tr("Убрать фото")}
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-foreground text-background"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+            <PromptInputBody>
+              <PromptInputTextarea
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                placeholder={tr("Напиши Lumen…")}
+                className="min-h-12 text-base"
+              />
+            </PromptInputBody>
+            <PromptInputFooter className="justify-between">
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  void pickImage(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+              <PromptInputButton
+                onClick={() => fileInput.current?.click()}
+                aria-label={tr("Добавить фото")}
+                disabled={sending}
+              >
+                <ImagePlus />
+              </PromptInputButton>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground">
+                  {tr("AI сначала предложит изменения")}
+                </span>
+                <PromptInputSubmit
+                  disabled={(!text.trim() && !image) || sending}
+                  status={sending ? "submitted" : "ready"}
+                  className="h-9 w-9 rounded-full"
+                />
+              </div>
+            </PromptInputFooter>
+          </PromptInput>
+        </div>
+      </section>
+    </>
   );
+}
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), Math.max(min, max));
+
+/** Floating window box, defaulting to the bottom-right corner and kept on screen. */
+function floatBox(layout: ChatLayout) {
+  if (typeof window === "undefined") return { left: 0, top: 0, w: layout.w, h: layout.h };
+  const w = clamp(layout.w, FLOAT_MIN.w, window.innerWidth - 16);
+  const h = clamp(layout.h, FLOAT_MIN.h, window.innerHeight - 16);
+  const left =
+    layout.x < 0 ? window.innerWidth - w - 24 : clamp(layout.x, 0, window.innerWidth - w);
+  const top =
+    layout.y < 0 ? window.innerHeight - h - 24 : clamp(layout.y, 0, window.innerHeight - h);
+  return { left, top, w, h };
 }
 
 function wipesEverything(proposal: AiProposal): boolean {

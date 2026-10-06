@@ -142,6 +142,7 @@ const dict: Record<string, string> = {
   "Загрузка…": "Loading…",
   "Задачи закрыты": "Tasks closed",
   "Закончились AI-кредиты.": "Out of AI credits.",
+  "Закрепить справа": "Dock to the right",
   "Закрыть проект": "Close the project",
   Записано: "Saved",
   Записать: "Save",
@@ -226,6 +227,8 @@ const dict: Record<string, string> = {
   "Одно дело": "One task",
   "Осталось {0}": "{0} left",
   "Осталось дел: {0}": "Tasks left: {0}",
+  "Открепить в окно": "Pop out into a window",
+  "Открыть чат": "Open chat",
   Отмена: "Cancel",
   "Отмечай время отхода и подъёма. Lumen строит линию качества сна за месяц.":
     "Log when you go to bed and wake up. Lumen charts your sleep quality over the month.",
@@ -270,6 +273,8 @@ const dict: Record<string, string> = {
   "Попроси поставить задачу, составить план или перенести дело.":
     "Ask to add a task, make a plan or move something.",
   "Последние матчи": "Recent matches",
+  "Потяни, чтобы изменить размер": "Drag to resize",
+  "Потяни, чтобы изменить ширину": "Drag to change the width",
   Предложение: "Suggestion",
   "Привет, я рядом": "Hi, I'm here",
   Приложение: "App",
@@ -316,6 +321,7 @@ const dict: Record<string, string> = {
   Синхронизировать: "Sync",
   "Синхронизирую…": "Syncing…",
   "Скрыть советы": "Hide tips",
+  "Скрыть чат": "Hide chat",
   "Слишком много запросов к AI. Попробуй через минуту.":
     "Too many AI requests. Try again in a minute.",
   "Собираю мысли про твой день…": "Gathering thoughts about your day…",

@@ -16,6 +16,13 @@ import {
 import { PlansSection as PlannerPlansSection, TaskEditor } from "@/components/planner-sections";
 import { AppSheet } from "@/components/ui/app-sheet";
 import { localIso } from "@/lib/planner";
+import {
+  WIDE_QUERY,
+  getChatLayout,
+  setChatLayout,
+  useChatLayout,
+  useMediaQuery,
+} from "@/lib/chat-layout";
 import { HomeSection, greeting, todayLabel, type Section } from "@/components/app/home";
 import { tr } from "@/lib/i18n";
 
@@ -36,7 +43,7 @@ const MetricsSection = lazy(() =>
   import("@/components/app/metrics").then((m) => ({ default: m.MetricsSection })),
 );
 
-const WIDE = "(min-width: 1280px)";
+const WIDE = WIDE_QUERY;
 const isWide = () => typeof window !== "undefined" && window.matchMedia(WIDE).matches;
 
 function SideItem({
@@ -105,6 +112,8 @@ function AppPage() {
   // with no reload or "Загрузка…" flash.
   const [visited, setVisited] = useState<Section[]>(() => (isWide() ? ["home", "ai"] : ["home"]));
   const [adding, setAdding] = useState(false);
+  const wideScreen = useMediaQuery(WIDE_QUERY);
+  const chatLayout = useChatLayout();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
 
@@ -114,8 +123,12 @@ function AppPage() {
   const setSection = useCallback((next: Section) => {
     const current = sectionRef.current;
     if (next === "ai" && isWide()) {
-      // Wide screens: the chat is always open on the right; just jump into it.
-      document.querySelector<HTMLTextAreaElement>("[data-ai-chat] textarea")?.focus();
+      // Wide screens: the chat lives next to the app; show it and jump into it.
+      const layout = getChatLayout();
+      if (layout.mode === "hidden") setChatLayout({ mode: layout.last });
+      requestAnimationFrame(() =>
+        document.querySelector<HTMLTextAreaElement>("[data-ai-chat] textarea")?.focus(),
+      );
       return;
     }
     if (next === current) {
@@ -328,7 +341,13 @@ function AppPage() {
   }, []);
 
   return (
-    <div className="relative min-h-app bg-background text-foreground md:pl-60 xl:pr-[400px]">
+    <div
+      className="relative min-h-app bg-background text-foreground md:pl-60"
+      // Leave room for the docked chat panel (wide screens).
+      style={
+        wideScreen && chatLayout.mode === "dock" ? { paddingRight: chatLayout.width } : undefined
+      }
+    >
       {/* Computer: a sidebar instead of the bottom tab bar. */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border bg-background px-3 py-6 md:flex">
         <div className="px-3 pb-6">
@@ -352,8 +371,6 @@ function AppPage() {
               hint={String(i + 1)}
               active={section === s.id}
               onClick={() => setSection(s.id)}
-              // The chat is docked on the right on wide screens.
-              className={s.id === "ai" ? "xl:hidden" : ""}
             />
           ))}
         </nav>
