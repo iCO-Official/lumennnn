@@ -23,6 +23,8 @@ import {
 import { localIso } from "@/lib/planner";
 import { useTheme } from "@/components/theme-provider";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
+import { AI_AUTO_APPLY_KEY, useLocalFlag } from "@/lib/use-local-flag";
 
 const INTERESTS = [
   { id: "sport", label: "Спорт и тренировки" },
@@ -161,6 +163,10 @@ export function SettingsView() {
 
       <Section title="Напоминания" icon={<Bell className="h-4 w-4" />}>
         <NotificationsCard />
+      </Section>
+
+      <Section title="AI" icon={<Sparkles className="h-4 w-4" />}>
+        <AiSettings />
       </Section>
 
       <Section title="Оформление" icon={<Palette className="h-4 w-4" />}>
@@ -322,6 +328,21 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
       <span className="text-muted-foreground">{label}</span>
       <span className="text-right">{value}</span>
     </div>
+  );
+}
+
+function AiSettings() {
+  const [autoApply, setAutoApply] = useLocalFlag(AI_AUTO_APPLY_KEY);
+  return (
+    <label className="flex items-center justify-between gap-4 px-4 py-3.5">
+      <span>
+        Применять без подтверждения
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          AI сразу добавляет, меняет и удаляет дела. «Удалить всё» всё равно спросит.
+        </span>
+      </span>
+      <Switch checked={autoApply} onCheckedChange={setAutoApply} />
+    </label>
   );
 }
 

@@ -2,6 +2,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { Check, ImagePlus, Plus, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
+import { AI_AUTO_APPLY_KEY, readLocalFlag, useLocalFlag } from "@/lib/use-local-flag";
 import {
   Conversation,
   ConversationContent,
@@ -76,6 +77,7 @@ export function LumenAiChat() {
   const [applying, setApplying] = useState<number | null>(null);
   const [image, setImage] = useState<PickedImage | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [autoApply, setAutoApply] = useLocalFlag(AI_AUTO_APPLY_KEY);
 
   useEffect(() => {
     void load();
@@ -165,15 +167,31 @@ export function LumenAiChat() {
     try {
       const imagePath = picked ? await uploadImage(picked.blob) : null;
       const result = await send({ data: { message: value, imagePath, today: localIso() } });
-      setMessages((current) => [
-        ...current,
-        {
-          id: result.messageId ?? undefined,
-          role: "assistant",
-          content: result.reply,
-          proposal: result.proposal ?? null,
-        },
-      ]);
+      const reply: AiMsg = {
+        id: result.messageId ?? undefined,
+        role: "assistant",
+        content: result.reply,
+        proposal: result.proposal ?? null,
+      };
+      // Auto-apply mode: no card, just do it (wiping everything still asks).
+      if (reply.proposal && readLocalFlag(AI_AUTO_APPLY_KEY) && !wipesEverything(reply.proposal)) {
+        try {
+          await runProposal(reply.proposal);
+          reply.content = `${reply.content}\n\nИзменения применены.`;
+          reply.proposal = null;
+          if (reply.id)
+            await supabase
+              .from("ai_messages")
+              .update({ proposal: null, content: reply.content })
+              .eq("id", reply.id);
+          toast.success("Готово");
+        } catch (error) {
+          toast.error(
+            (error as { message?: string } | null)?.message || "Не удалось применить изменения",
+          );
+        }
+      }
+      setMessages((current) => [...current, reply]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось получить ответ");
     } finally {
@@ -270,6 +288,17 @@ export function LumenAiChat() {
                     proposal={message.proposal}
                     applying={applying === index}
                     onConfirm={() => void applyProposal(message.proposal!, index)}
+                    onAlways={
+                      autoApply || wipesEverything(message.proposal)
+                        ? undefined
+                        : () => {
+                            setAutoApply(true);
+                            toast.success(
+                              "Теперь AI будет применять сразу. Выключить — в Настройках",
+                            );
+                            void applyProposal(message.proposal!, index);
+                          }
+                    }
                     onCancel={() => {
                       setMessages((current) =>
                         current.map((item, i) =>
@@ -359,6 +388,11 @@ export function LumenAiChat() {
       </div>
     </section>
   );
+}
+
+function wipesEverything(proposal: AiProposal): boolean {
+  if (proposal.kind === "batch") return proposal.parts.some(wipesEverything);
+  return proposal.kind === "delete" && !!proposal.all;
 }
 
 async function runProposal(proposal: AiProposal): Promise<void> {
@@ -477,11 +511,13 @@ function ProposalCard({
   proposal,
   applying,
   onConfirm,
+  onAlways,
   onCancel,
 }: {
   proposal: AiProposal;
   applying: boolean;
   onConfirm: () => void;
+  onAlways?: () => void;
   onCancel: () => void;
 }) {
   const sections = describeProposal(proposal);
@@ -504,11 +540,16 @@ function ProposalCard({
           </div>
         </div>
       ))}
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         <Button onClick={onConfirm} disabled={applying} size="sm">
           <Check />
           {applying ? "Применяю…" : "Подтвердить"}
         </Button>
+        {onAlways && (
+          <Button onClick={onAlways} disabled={applying} variant="secondary" size="sm">
+            Всегда применять
+          </Button>
+        )}
         <Button onClick={onCancel} variant="ghost" size="sm">
           <X />
           Отмена
