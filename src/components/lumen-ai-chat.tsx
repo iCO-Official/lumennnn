@@ -20,7 +20,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { CHAT_IMAGES_BUCKET, chatWithAi, resetAiChat, type AiProposal } from "@/lib/ai.functions";
-import { createTask, localIso, updateRoutineFuture, updateTaskInstance } from "@/lib/planner";
+import {
+  createTask,
+  deleteEverythingFrom,
+  deleteRoutineSeries,
+  deleteTaskById,
+  localIso,
+  updateRoutineFuture,
+  updateTaskInstance,
+} from "@/lib/planner";
 import { repeatLabel } from "@/lib/routine-schedule";
 
 type AiMsg = {
@@ -182,39 +190,7 @@ export function LumenAiChat() {
   async function applyProposal(proposal: AiProposal, index: number) {
     setApplying(index);
     try {
-      if (proposal.kind === "create_task") {
-        await createTask({
-          title: proposal.title,
-          date: proposal.date,
-          time: proposal.time,
-          repeatDays: proposal.repeatDays ?? [],
-          subtasks: proposal.subtasks ?? [],
-        });
-      } else if (proposal.kind === "update_task") {
-        if (proposal.routineId && proposal.allFuture)
-          await updateRoutineFuture(proposal.routineId, proposal.fromDate, {
-            title: proposal.title,
-            time_of_day: proposal.time,
-          });
-        else
-          await updateTaskInstance(
-            { id: proposal.taskId, routine_id: proposal.routineId ?? null },
-            {
-              title: proposal.title,
-              scheduled_for: proposal.date,
-              scheduled_time: proposal.time,
-            },
-          );
-      } else {
-        for (const [i, item] of proposal.items.entries())
-          await createTask({
-            title: item.title,
-            date: item.date || proposal.date,
-            time: item.time,
-            repeatDays: item.repeatDays ?? proposal.repeatDays ?? [],
-            sortOrder: i,
-          });
-      }
+      await runProposal(proposal);
       const target = messages[index];
       const content = `${target.content}\n\nИзменения применены.`;
       setMessages((current) =>
@@ -224,9 +200,11 @@ export function LumenAiChat() {
       );
       if (target.id)
         await supabase.from("ai_messages").update({ proposal: null, content }).eq("id", target.id);
-      toast.success("Расписание обновлено");
+      toast.success(proposal.kind === "delete" ? "Удалено" : "Расписание обновлено");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось применить изменения");
+      toast.error(
+        (error as { message?: string } | null)?.message || "Не удалось применить изменения",
+      );
     } finally {
       setApplying(null);
     }
@@ -383,6 +361,118 @@ export function LumenAiChat() {
   );
 }
 
+async function runProposal(proposal: AiProposal): Promise<void> {
+  if (proposal.kind === "batch") {
+    for (const part of proposal.parts) await runProposal(part);
+  } else if (proposal.kind === "delete") {
+    if (proposal.all) await deleteEverythingFrom(localIso());
+    else
+      for (const item of proposal.items) {
+        if (item.routineId) await deleteRoutineSeries(item.routineId, localIso());
+        else if (item.taskId) await deleteTaskById(item.taskId);
+      }
+  } else if (proposal.kind === "create_task") {
+    await createTask({
+      title: proposal.title,
+      date: proposal.date,
+      time: proposal.time,
+      repeatDays: proposal.repeatDays ?? [],
+      subtasks: proposal.subtasks ?? [],
+    });
+  } else if (proposal.kind === "update_task") {
+    if (proposal.routineId && proposal.allFuture)
+      await updateRoutineFuture(proposal.routineId, proposal.fromDate, {
+        title: proposal.title,
+        time_of_day: proposal.time,
+      });
+    else
+      await updateTaskInstance(
+        { id: proposal.taskId, routine_id: proposal.routineId ?? null },
+        {
+          title: proposal.title,
+          scheduled_for: proposal.date,
+          scheduled_time: proposal.time,
+        },
+      );
+  } else {
+    for (const [i, item] of proposal.items.entries())
+      await createTask({
+        title: item.title,
+        date: item.date || proposal.date,
+        time: item.time,
+        repeatDays: item.repeatDays ?? proposal.repeatDays ?? [],
+        sortOrder: i,
+      });
+  }
+}
+
+function describeProposal(proposal: AiProposal): { title: string; details: string[] }[] {
+  if (proposal.kind === "batch") return proposal.parts.flatMap(describeProposal);
+  if (proposal.kind === "delete") {
+    if (proposal.all)
+      return [
+        {
+          title: "Удалить всё",
+          details: [
+            "Все повторы и все дела с сегодняшнего дня",
+            ...(proposal.counts
+              ? [`Повторов: ${proposal.counts.routines} · дел: ${proposal.counts.tasks}`]
+              : []),
+            "Выполненное раньше останется в истории",
+          ],
+        },
+      ];
+    return [
+      {
+        title: "Удалить",
+        details: proposal.items.map(
+          (item) =>
+            `${item.time ? `${item.time} — ` : ""}${item.title}${
+              item.routineId ? " · все повторы" : item.date ? ` · ${item.date}` : ""
+            }`,
+        ),
+      },
+    ];
+  }
+  if (proposal.kind === "schedule") {
+    const scheduleRepeat = proposal.repeatDays?.length ? repeatLabel(proposal.repeatDays) : null;
+    return [
+      {
+        title: scheduleRepeat ? "Добавить повторяющиеся дела" : "Добавить расписание",
+        details: [
+          scheduleRepeat ? `${scheduleRepeat}, с ${proposal.date}` : proposal.date,
+          ...proposal.items.map((item) => {
+            const repeat =
+              !scheduleRepeat && item.repeatDays?.length
+                ? ` · ${repeatLabel(item.repeatDays)}`
+                : "";
+            return `${item.time ?? "Без времени"} — ${item.title}${repeat}`;
+          }),
+        ],
+      },
+    ];
+  }
+  return [
+    {
+      title:
+        proposal.kind === "create_task"
+          ? "Создать задачу"
+          : proposal.allFuture
+            ? "Изменить все повторы"
+            : "Изменить задачу",
+      details: [
+        `${proposal.time ?? "Без времени"} — ${proposal.title}`,
+        proposal.kind === "create_task" && proposal.repeatDays?.length
+          ? `${repeatLabel(proposal.repeatDays)}, с ${proposal.date}`
+          : proposal.date,
+        ...(proposal.kind === "create_task" && proposal.subtasks?.length
+          ? proposal.subtasks.map((st) => `☐ ${st}`)
+          : []),
+      ],
+    },
+  ];
+}
+
 function ProposalCard({
   proposal,
   applying,
@@ -394,52 +484,26 @@ function ProposalCard({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const title =
-    proposal.kind === "create_task"
-      ? "Создать задачу"
-      : proposal.kind === "update_task"
-        ? proposal.allFuture
-          ? "Изменить все повторы"
-          : "Изменить задачу"
-        : proposal.repeatDays?.length
-          ? "Добавить повторяющиеся дела"
-          : "Добавить расписание";
-  const scheduleRepeat =
-    proposal.kind === "schedule" && proposal.repeatDays?.length
-      ? repeatLabel(proposal.repeatDays)
-      : null;
-  const details =
-    proposal.kind === "schedule"
-      ? [
-          scheduleRepeat ? `${scheduleRepeat}, с ${proposal.date}` : proposal.date,
-          ...proposal.items.map((item) => {
-            const repeat =
-              !scheduleRepeat && item.repeatDays?.length
-                ? ` · ${repeatLabel(item.repeatDays)}`
-                : "";
-            return `${item.time ?? "Без времени"} — ${item.title}${repeat}`;
-          }),
-        ]
-      : [
-          `${proposal.time ?? "Без времени"} — ${proposal.title}`,
-          proposal.kind === "create_task" && proposal.repeatDays?.length
-            ? `${repeatLabel(proposal.repeatDays)}, с ${proposal.date}`
-            : proposal.date,
-          ...(proposal.kind === "create_task" && proposal.subtasks?.length
-            ? proposal.subtasks.map((st) => `☐ ${st}`)
-            : []),
-        ];
+  const sections = describeProposal(proposal);
   return (
     <div className="w-full max-w-md border-y border-border py-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Предложение
       </p>
-      <h3 className="mt-1 text-sm font-semibold">{title}</h3>
-      <div className="mt-3 space-y-1 text-sm">
-        {details.map((detail) => (
-          <p key={detail}>{detail}</p>
-        ))}
-      </div>
+      {sections.map((section, i) => (
+        <div key={i} className={i ? "mt-4" : ""}>
+          <h3
+            className={`mt-1 text-sm font-semibold ${section.title.startsWith("Удалить") ? "text-destructive" : ""}`}
+          >
+            {section.title}
+          </h3>
+          <div className="mt-2 space-y-1 text-sm">
+            {section.details.map((detail, j) => (
+              <p key={j}>{detail}</p>
+            ))}
+          </div>
+        </div>
+      ))}
       <div className="mt-4 flex gap-2">
         <Button onClick={onConfirm} disabled={applying} size="sm">
           <Check />
