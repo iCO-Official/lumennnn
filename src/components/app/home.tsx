@@ -33,7 +33,7 @@ import {
   type PlannerTask,
 } from "@/lib/planner";
 import { AppSheet } from "@/components/ui/app-sheet";
-import { useHideDone } from "@/lib/use-hide-done";
+import { useHideDone } from "@/lib/use-local-flag";
 import { SubtaskCount, SubtaskList, TaskEditor } from "@/components/planner-sections";
 
 export type Section = "home" | "plans" | "settings" | "journal" | "sleep" | "ai" | "metrics";

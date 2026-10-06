@@ -21,7 +21,7 @@ import { Check, ChevronDown, GripVertical, Pencil, Plus, Repeat, Trash2, X } fro
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { useHideDone } from "@/lib/use-hide-done";
+import { useHideDone } from "@/lib/use-local-flag";
 import { AppSheet } from "@/components/ui/app-sheet";
 import { supabase } from "@/integrations/supabase/client";
 import {
