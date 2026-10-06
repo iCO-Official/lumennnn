@@ -218,6 +218,7 @@ const dict: Record<string, string> = {
   "Нет аккаунта? ": "Kein Konto? ",
   "Ничего не нужно ставить: открой сайт и войди.":
     "Nichts zu installieren: Seite öffnen und anmelden.",
+  "Новое дело": "Neue Aufgabe",
   "Новые дела": "Neue Aufgaben",
   "Новый чат": "Neuer Chat",
   "Нужно войти заново": "Bitte melde dich erneut an",
@@ -352,6 +353,7 @@ const dict: Record<string, string> = {
   "Только этот день": "Nur dieser Tag",
   "Тренировка 18:00": "Training 18:00",
   Тренировки: "Training",
+  "Тренировки и другое": "Training und mehr",
   "Тренировки, здоровье, метрики, игры, статистика":
     "Training, Gesundheit, Metriken, Spiele, Statistik",
   Тренировок: "Trainings",
