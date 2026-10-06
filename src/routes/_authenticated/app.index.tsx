@@ -203,6 +203,20 @@ function AppPage() {
     };
   }, []);
 
+  // Desktop: keys 1–5 switch tabs (ignored while typing or with modifiers).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement;
+      if (el?.matches?.("input, textarea, select, [contenteditable]")) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      const target = SECTIONS[Number(e.key) - 1];
+      if (target) setSection(target.id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setSection]);
+
   // Publish the real tab bar height as --nav-h (the AI chat sits right above it).
   const navRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -243,15 +257,45 @@ function AppPage() {
   }, []);
 
   return (
-    <div className="relative min-h-app bg-background text-foreground">
+    <div className="relative min-h-app bg-background text-foreground lg:pl-60">
+      {/* Desktop: a sidebar instead of the bottom tab bar. */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border bg-background px-3 py-6 lg:flex">
+        <div className="px-3 pb-8">
+          <LumenLogo />
+        </div>
+        <nav className="flex flex-col gap-1">
+          {SECTIONS.map((s, i) => {
+            const Icon = s.icon;
+            const active = section === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setSection(s.id)}
+                className={`flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] transition-colors ${
+                  active
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                {s.label}
+                <kbd className="ml-auto font-sans text-[11px] text-muted-foreground/60">
+                  {i + 1}
+                </kbd>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
       {section !== "ai" && (
-        <header className="relative z-10 mx-auto flex h-14 max-w-4xl items-center px-5 pt-2 sm:px-8 sm:pt-4">
+        <header className="relative z-10 mx-auto flex h-14 max-w-4xl items-center px-5 pt-2 sm:px-8 sm:pt-4 lg:hidden">
           <LumenLogo />
         </header>
       )}
 
       <main
-        className={`relative z-10 mx-auto max-w-4xl ${section === "ai" ? "" : "px-5 pb-36 pt-3 sm:px-8 sm:pt-6"}`}
+        className={`relative z-10 mx-auto max-w-4xl lg:max-w-5xl ${section === "ai" ? "" : "px-5 pb-36 pt-3 sm:px-8 sm:pt-6 lg:pb-16 lg:pt-10"}`}
       >
         {section !== "ai" && section !== "settings" && (
           <div className="mb-5">
@@ -281,7 +325,7 @@ function AppPage() {
       {/* Bottom navigation */}
       <nav
         ref={navRef}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(6px,calc(env(safe-area-inset-bottom)-14px))]"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(6px,calc(env(safe-area-inset-bottom)-14px))] lg:hidden"
         style={{ transform: "translateY(var(--vv-gap, 0px))" }}
       >
         <div

@@ -9,10 +9,14 @@ import {
   NotebookPen,
   ArrowRight,
   Smartphone,
+  Monitor,
+  Globe,
+  Download,
 } from "lucide-react";
 import { LumenLogo, LumenMark } from "@/components/lumen-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { tr } from "@/lib/i18n";
+import { useInstallPrompt } from "@/lib/install";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -135,6 +139,13 @@ function Landing() {
               {tr("Что внутри")}
             </a>
           </div>
+          <a
+            href="#install"
+            className="mt-5 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Monitor className="h-4 w-4" />
+            {tr("Есть для телефона и компьютера")}
+          </a>
         </motion.div>
 
         {/* Mock card */}
@@ -219,23 +230,7 @@ function Landing() {
         </div>
       </section>
 
-      {/* iPhone install */}
-      <section className="relative z-10 mx-auto max-w-6xl px-5 pb-24 sm:px-8">
-        <div className="flex flex-col items-start gap-6 rounded-3xl border border-border bg-card p-8 sm:flex-row sm:items-center sm:justify-between sm:p-12">
-          <div className="max-w-xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
-              <Smartphone className="h-3.5 w-3.5" /> {tr("Работает как приложение")}
-            </div>
-            <h3 className="font-serif text-3xl tracking-tight">{tr("Добавь Lumen на iPhone")}</h3>
-            <p className="mt-3 text-muted-foreground">
-              {tr(
-                "Открой в Safari → «Поделиться» → «На экран Домой». Lumen откроется как нативное приложение, без браузера.",
-              )}
-            </p>
-          </div>
-          <LumenMark size={64} className="opacity-80" />
-        </div>
-      </section>
+      <InstallSection />
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-border">
@@ -248,5 +243,79 @@ function Landing() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function InstallSection() {
+  const install = useInstallPrompt();
+  const platforms = [
+    {
+      icon: Smartphone,
+      title: tr("На телефоне"),
+      steps: [
+        tr("iPhone: Safari → «Поделиться» → «На экран Домой»."),
+        tr("Android: Chrome → ⋮ → «Установить приложение»."),
+      ],
+    },
+    {
+      icon: Monitor,
+      title: tr("На компьютере"),
+      steps: [
+        tr("Chrome или Edge: значок установки справа в адресной строке или кнопка ниже."),
+        tr("Mac, Safari: «Файл» → «Добавить в Dock»."),
+      ],
+    },
+    {
+      icon: Globe,
+      title: tr("Прямо в браузере"),
+      steps: [
+        tr("Ничего не нужно ставить: открой сайт и войди."),
+        tr("Дела, повторы и чат с AI одни и те же на всех устройствах."),
+      ],
+    },
+  ];
+  return (
+    <section id="install" className="relative z-10 mx-auto max-w-6xl px-5 pb-24 sm:px-8">
+      <div className="rounded-3xl border border-border bg-card p-8 sm:p-12">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
+              <Download className="h-3.5 w-3.5" /> {tr("Работает как приложение")}
+            </div>
+            <h3 className="font-serif text-3xl tracking-tight">
+              {tr("Телефон, компьютер или браузер")}
+            </h3>
+            <p className="mt-3 text-muted-foreground">
+              {tr(
+                "Установи Lumen как приложение — он откроется в своём окне, без вкладок и адресной строки. Или пользуйся прямо на сайте.",
+              )}
+            </p>
+          </div>
+          {install && (
+            <button
+              type="button"
+              onClick={() => void install()}
+              className="inline-flex shrink-0 items-center gap-2 self-start rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background transition-transform hover:scale-[1.02] sm:self-auto"
+            >
+              <Download className="h-4 w-4" />
+              {tr("Установить на компьютер")}
+            </button>
+          )}
+        </div>
+        <div className="mt-8 grid gap-3 sm:grid-cols-3">
+          {platforms.map(({ icon: Icon, title, steps }) => (
+            <div key={title} className="rounded-2xl border border-border p-5">
+              <Icon className="h-5 w-5" />
+              <h4 className="mt-3 text-base font-medium">{title}</h4>
+              <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
+                {steps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }

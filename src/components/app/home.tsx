@@ -125,21 +125,37 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
   const done = list.filter((t) => t.completed).length;
 
   return (
-    <div className="flex flex-col gap-4">
-      <DayProgress done={done} total={list.length} loading={tasks === null} />
-      <NowNext
-        tasks={list}
-        now={now}
-        onDone={toggle}
-        onToggleSubtask={toggleSubtask}
-        onAdd={() => setAdding(true)}
-      />
+    // Phone: one column. Desktop: the day plan gets its own column on the right
+    // (the left wrapper is display:contents on phones, so `order` interleaves).
+    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">
+      <div className="contents lg:flex lg:flex-col lg:gap-5">
+        <div className="order-1 lg:order-none">
+          <DayProgress done={done} total={list.length} loading={tasks === null} />
+        </div>
+        <div className="order-2 lg:order-none">
+          <NowNext
+            tasks={list}
+            now={now}
+            onDone={toggle}
+            onToggleSubtask={toggleSubtask}
+            onAdd={() => setAdding(true)}
+          />
+        </div>
+        <div className="order-4 lg:order-none">
+          <QuickActions onAdd={() => setAdding(true)} onGo={onGo} />
+        </div>
+        <div className="order-5 lg:order-none">
+          <BriefCard onGo={onGo} />
+        </div>
+        <div className="order-6 lg:order-none">
+          <RemindersButton />
+        </div>
+      </div>
       {list.length > 0 && (
-        <Timeline tasks={list} now={now} onToggle={toggle} onAll={() => onGo("plans")} />
+        <div className="order-3 lg:sticky lg:top-6 lg:order-none">
+          <Timeline tasks={list} now={now} onToggle={toggle} onAll={() => onGo("plans")} />
+        </div>
       )}
-      <QuickActions onAdd={() => setAdding(true)} onGo={onGo} />
-      <BriefCard onGo={onGo} />
-      <RemindersButton />
 
       <AppSheet open={adding} onClose={() => setAdding(false)}>
         <TaskEditor
