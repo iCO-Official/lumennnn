@@ -21,6 +21,9 @@ const dict: Record<string, string> = {
   "AI-разбор недели": "KI-Wochenrückblick",
   "AI: ты спишь на 40 минут меньше, чем неделю назад. Сдвинь отбой на 23:30.":
     "KI: Du schläfst 40 Minuten weniger als vor einer Woche. Geh um 23:30 ins Bett.",
+  "Android: Chrome → ⋮ → «Установить приложение».": "Android: Chrome → ⋮ → App installieren.",
+  "Chrome или Edge: значок установки справа в адресной строке или кнопка ниже.":
+    "Chrome oder Edge: das Installationssymbol rechts in der Adressleiste oder der Button unten.",
   "FACEIT_API_KEY не задан": "FACEIT_API_KEY ist nicht gesetzt",
   "Faceit: игрок не найден ({0})": "Faceit: Spieler nicht gefunden ({0})",
   "Faceit: не удалось получить player_id": "Faceit: player_id konnte nicht abgerufen werden",
@@ -32,9 +35,12 @@ const dict: Record<string, string> = {
   "Lumen — твой ежедневник и AI-аналитик дня": "Lumen — dein Planer und KI-Tagesanalyst",
   "Lumen — это ежедневник, тренер и аналитик. Планируй день, неделю и месяц. Следи за сном и здоровьем. AI расскажет, что улучшить — без воды.":
     "Lumen ist Planer, Coach und Analyst. Plane Tag, Woche und Monat. Behalte Schlaf und Gesundheit im Blick. Die KI sagt dir, was du verbessern kannst — ohne Gerede.",
+  "Mac, Safari: «Файл» → «Добавить в Dock».": "Mac, Safari: Ablage → Zum Dock hinzufügen.",
   "STEAM_API_KEY не задан": "STEAM_API_KEY ist nicht gesetzt",
   "Steam: {0}. Проверь Steam ID (64-bit) и публичность профиля.":
     "Steam: {0}. Prüfe die Steam-ID (64-Bit) und ob das Profil öffentlich ist.",
+  "iPhone: Safari → «Поделиться» → «На экран Домой».":
+    "iPhone: Safari → Teilen → Zum Home-Bildschirm.",
   "lumen · среда, 7 июня": "lumen · Mittwoch, 7. Juni",
   "{0}\n\nИзменения применены.": "{0}\n\nÄnderungen übernommen.",
   "{0} из {1}": "{0} von {1}",
@@ -95,6 +101,8 @@ const dict: Record<string, string> = {
   Дальше: "Als Nächstes",
   Дата: "Datum",
   Девушка: "Frau",
+  "Дела, повторы и чат с AI одни и те же на всех устройствах.":
+    "Aufgaben, Wiederholungen und der KI-Chat sind auf allen Geräten gleich.",
   Дело: "Aufgabe",
   "День, неделя, месяц — одно касание, чтобы переключиться. Задачи перетекают между уровнями.":
     "Tag, Woche, Monat — ein Tipp zum Wechseln. Aufgaben fließen zwischen den Ebenen.",
@@ -111,7 +119,6 @@ const dict: Record<string, string> = {
   "Добавить тренировку": "Training hinzufügen",
   "Добавить фото": "Foto hinzufügen",
   "Добавлено: {0}": "Hinzugefügt: {0}",
-  "Добавь Lumen на iPhone": "Lumen zum iPhone hinzufügen",
   "Добавь Lumen на экран «Домой» и открой оттуда":
     "Füge Lumen zum Home-Bildschirm hinzu und öffne es von dort",
   "Добавь Lumen на экран «Домой» и открой оттуда — iPhone присылает уведомления только так":
@@ -125,6 +132,7 @@ const dict: Record<string, string> = {
   Другое: "Andere",
   "Думаю…": "Denke nach…",
   "Единицы (необязательно): чашек, км, мин": "Einheit (optional): Tassen, km, Min.",
+  "Есть для телефона и компьютера": "Für Handy und Computer",
   Ещё: "Mehr",
   "Ещё нет записей.": "Noch keine Einträge.",
   "Ещё ни одной тренировки.": "Noch kein Training.",
@@ -172,6 +180,8 @@ const dict: Record<string, string> = {
   Мысли: "Gedanken",
   "Мысли и дневник": "Gedanken und Tagebuch",
   "На главную": "Zur Startseite",
+  "На компьютере": "Am Computer",
+  "На телефоне": "Auf dem Handy",
   "На этот день ничего не запланировано": "Für diesen Tag ist nichts geplant",
   Назад: "Zurück",
   Название: "Titel",
@@ -206,6 +216,8 @@ const dict: Record<string, string> = {
   "Некорректное фото": "Ungültiges Foto",
   Нет: "Nein",
   "Нет аккаунта? ": "Kein Konto? ",
+  "Ничего не нужно ставить: открой сайт и войди.":
+    "Nichts zu installieren: Seite öffnen und anmelden.",
   "Новые дела": "Neue Aufgaben",
   "Новый чат": "Neuer Chat",
   "Нужно войти заново": "Bitte melde dich erneut an",
@@ -214,8 +226,6 @@ const dict: Record<string, string> = {
   "Одно дело": "Eine Aufgabe",
   "Осталось {0}": "Noch {0}",
   "Осталось дел: {0}": "Offene Aufgaben: {0}",
-  "Открой в Safari → «Поделиться» → «На экран Домой». Lumen откроется как нативное приложение, без браузера.":
-    "Öffne in Safari → Teilen → Zum Home-Bildschirm. Lumen öffnet sich wie eine native App, ohne Browser.",
   Отмена: "Abbrechen",
   "Отмечай время отхода и подъёма. Lumen строит линию качества сна за месяц.":
     "Trag ein, wann du schlafen gehst und aufstehst. Lumen zeigt deine Schlafqualität über den Monat.",
@@ -273,6 +283,7 @@ const dict: Record<string, string> = {
   Профиль: "Profil",
   "Профиль сохранён": "Profil gespeichert",
   "Прочитать главу": "Ein Kapitel lesen",
+  "Прямо в браузере": "Direkt im Browser",
   Пт: "Fr",
   "Работает как приложение": "Läuft wie eine App",
   Разделы: "Bereiche",
@@ -333,6 +344,7 @@ const dict: Record<string, string> = {
   Статус: "Status",
   "Страница не найдена.": "Seite nicht gefunden.",
   Текст: "Text",
+  "Телефон, компьютер или браузер": "Handy, Computer oder Browser",
   "Теперь AI будет применять сразу. Выключить — в Настройках":
     "Die KI übernimmt jetzt sofort. Ausschalten in den Einstellungen",
   "Тестовое уведомление придёт в течение минуты":
@@ -357,7 +369,11 @@ const dict: Record<string, string> = {
   "Уже есть аккаунт? ": "Schon ein Konto? ",
   "Укажи имя": "Gib deinen Namen ein",
   Уровень: "Level",
-  "Установлено на экран «Домой»": "Auf dem Home-Bildschirm installiert",
+  "Установи Lumen как приложение — он откроется в своём окне, без вкладок и адресной строки. Или пользуйся прямо на сайте.":
+    "Installiere Lumen als App — es öffnet sich in einem eigenen Fenster, ohne Tabs und Adressleiste. Oder nutze es direkt auf der Website.",
+  "Установить на компьютер": "Auf dem Computer installieren",
+  "Установить на это устройство": "Auf diesem Gerät installieren",
+  "Установлено как приложение": "Als App installiert",
   Фото: "Foto",
   "Фото не загрузилось: {0}": "Das Foto wurde nicht hochgeladen: {0}",
   "Часовой пояс": "Zeitzone",

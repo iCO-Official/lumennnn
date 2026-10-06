@@ -15,6 +15,8 @@ import { ThemeProvider } from "../components/theme-provider";
 import { Toaster } from "../components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getLang, tr } from "@/lib/i18n";
+// Registers the beforeinstallprompt listener early (desktop / Android install button).
+import "@/lib/install";
 
 const OG_IMAGE = `${import.meta.env.VITE_SITE_URL ?? ""}/og-image.jpg`;
 

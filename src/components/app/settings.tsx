@@ -13,6 +13,7 @@ import {
   Sun,
   User,
   Languages,
+  Download,
 } from "lucide-react";
 import {
   disablePush,
@@ -24,6 +25,7 @@ import {
 import { localIso } from "@/lib/planner";
 import { useTheme } from "@/components/theme-provider";
 import { toast } from "sonner";
+import { isStandalone, useInstallPrompt } from "@/lib/install";
 import { Switch } from "@/components/ui/switch";
 import { AI_AUTO_APPLY_KEY, useLocalFlag } from "@/lib/use-local-flag";
 import { LANGUAGES, getLang, getLocale, isLangManual, setLang, tr, type Lang } from "@/lib/i18n";
@@ -407,18 +409,28 @@ function ThemePicker() {
 
 function AppInfo() {
   const [standalone, setStandalone] = useState<boolean | null>(null);
+  const install = useInstallPrompt();
   useEffect(() => {
-    setStandalone(
-      window.matchMedia?.("(display-mode: standalone)").matches ||
-        (navigator as Navigator & { standalone?: boolean }).standalone === true,
-    );
+    setStandalone(isStandalone());
   }, []);
   return (
     <div>
       <Row
-        label={tr("Установлено на экран «Домой»")}
+        label={tr("Установлено как приложение")}
         value={standalone == null ? "—" : standalone ? tr("Да") : tr("Нет")}
       />
+      {install && (
+        <div className="border-b border-border p-2">
+          <button
+            type="button"
+            onClick={() => void install()}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-foreground text-sm font-medium text-background"
+          >
+            <Download className="h-4 w-4" />
+            {tr("Установить на это устройство")}
+          </button>
+        </div>
+      )}
       <Row
         label={tr("Часовой пояс")}
         value={typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "—"}
