@@ -348,3 +348,42 @@ export async function removeTask(task: PlannerTask, allFuture: boolean) {
   if (error) throw error;
   plannerChanged();
 }
+
+/** Deletes a whole repeating series from `fromDate` on (done days stay as history). */
+export async function deleteRoutineSeries(routineId: string, fromDate = localIso()) {
+  const { data: routine, error } = await supabase
+    .from("routines")
+    .select("id,starts_on")
+    .eq("id", routineId)
+    .maybeSingle();
+  if (error) throw error;
+  if (routine) await endRoutine(routine, fromDate);
+}
+
+/** Deletes one task; for a day of a repeating series, skips just that day. */
+export async function deleteTaskById(taskId: string) {
+  const { data: task, error } = await supabase
+    .from("tasks")
+    .select(TASK_FIELDS)
+    .eq("id", taskId)
+    .maybeSingle();
+  if (error) throw error;
+  if (task) await removeTask(task as PlannerTask, false);
+}
+
+/** "Удали всё": ends every repeat and removes every task from `fromDate` on. */
+export async function deleteEverythingFrom(fromDate = localIso()) {
+  const { data: routines, error } = await supabase
+    .from("routines")
+    .select("id,starts_on")
+    .or(`ends_on.is.null,ends_on.gte.${fromDate}`);
+  if (error) throw error;
+  for (const routine of routines ?? []) await endRoutine(routine, fromDate);
+  const { error: tasksError } = await supabase
+    .from("tasks")
+    .delete()
+    .is("routine_id", null)
+    .gte("scheduled_for", fromDate);
+  if (tasksError) throw tasksError;
+  plannerChanged();
+}

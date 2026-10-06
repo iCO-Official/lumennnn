@@ -79,20 +79,31 @@ export type AiProposal =
       /** Weekdays (0=Вс…6=Сб) every item repeats on; empty/missing = one-off tasks. */
       repeatDays?: number[];
       items: { title: string; time: string | null; date?: string; repeatDays?: number[] }[];
-    };
+    }
+  | {
+      kind: "delete";
+      /** Everything from today on: every repeat and every task. */
+      all?: boolean;
+      counts?: { routines: number; tasks: number };
+      /** routineId = the whole repeating series; taskId = one task / one day. */
+      items: {
+        taskId?: string;
+        routineId?: string;
+        title: string;
+        date?: string | null;
+        time?: string | null;
+      }[];
+    }
+  /** Several proposals from one reply, applied in order (deletes first). */
+  | { kind: "batch"; parts: AiProposal[] };
+
+type DeleteProposal = Extract<AiProposal, { kind: "delete" }>;
 
 type ScheduleItem = Extract<AiProposal, { kind: "schedule" }>["items"][number];
 
-/**
- * The model sometimes proposes a multi-item plan as several calls. Combine
- * every "create" proposal of one reply into a single schedule card so nothing
- * is lost; an update proposal only survives on its own.
- */
-function mergeProposals(proposals: AiProposal[]): AiProposal | null {
-  if (proposals.length <= 1) return proposals[0] ?? null;
-  const creates = proposals.filter((p) => p.kind !== "update_task");
-  if (!creates.length) return proposals[proposals.length - 1];
-  if (creates.length === 1) return creates[0];
+/** Combines the schedule-like proposals of one reply into one schedule. */
+function mergeCreates(creates: AiProposal[]): AiProposal | null {
+  if (creates.length <= 1) return creates[0] ?? null;
   const items: ScheduleItem[] = creates.flatMap((p) =>
     p.kind === "create_task"
       ? [{ title: p.title, time: p.time, date: p.date, repeatDays: p.repeatDays ?? [] }]
@@ -110,6 +121,37 @@ function mergeProposals(proposals: AiProposal[]): AiProposal | null {
     .filter(Boolean)
     .sort();
   return { kind: "schedule", date: dates[0] ?? "", items: items.slice(0, 30) };
+}
+
+function mergeDeletes(deletes: DeleteProposal[]): DeleteProposal | null {
+  if (deletes.length <= 1) return deletes[0] ?? null;
+  const all = deletes.find((p) => p.all);
+  if (all) return all;
+  const seen = new Set<string>();
+  const items = deletes
+    .flatMap((p) => p.items)
+    .filter((item) => {
+      const key = item.routineId ?? item.taskId ?? "";
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return { kind: "delete", items };
+}
+
+/**
+ * The model often splits one request over several tool calls ("delete the old
+ * ones and add these", or a schedule item by item). Keep all of them as one
+ * card: deletes first, then edits, then everything to create.
+ */
+function mergeProposals(proposals: AiProposal[]): AiProposal | null {
+  const parts = [
+    mergeDeletes(proposals.filter((p): p is DeleteProposal => p.kind === "delete")),
+    ...proposals.filter((p) => p.kind === "update_task"),
+    mergeCreates(proposals.filter((p) => p.kind === "create_task" || p.kind === "schedule")),
+  ].filter((p): p is AiProposal => !!p);
+  if (parts.length <= 1) return parts[0] ?? null;
+  return { kind: "batch", parts };
 }
 
 /** Normalizes model-supplied weekday numbers (0=Вс…6=Сб). */
@@ -322,6 +364,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
               userId,
               call.function.name,
               JSON.parse(call.function.arguments || "{}"),
+              dayInfo(data.today).iso,
             );
             result = toolResult.result;
             if (toolResult.proposal) proposals.push(toolResult.proposal);
@@ -370,10 +413,36 @@ const ROUTINE_TOOLS_HINT = `Ты помогаешь планировать, но
 Дата строго YYYY-MM-DD, время HH:MM или пустая строка. Для поиска существующего дела сначала используй list_tasks.
 Если пользователь просит расписание или распорядок из нескольких пунктов, вызови propose_schedule ОДИН раз со ВСЕМИ пунктами сразу — никогда не добавляй по одному и не говори «добавлю по очереди».
 Если расписание повторяется (каждый день, по будням, по выходным, «каждое утро»), передай repeat_days: будни = [1,2,3,4,5], выходные = [0,6], каждый день = [0,1,2,3,4,5,6]. Тогда пункты станут рутинами. date — первый подходящий день начиная с сегодня.
-Удалять дела ты не умеешь: никогда не говори, что что-то удалил или почистил. Если просят удалить, скажи, что это делается в «Планах» → «Повторяющиеся» (значок корзины) или корзиной у дела в списке дня.
+Удаление: сначала найди дела через list_tasks (разовые дела и дни) и list_routines (повторяющиеся), потом вызови propose_delete. Повторяющееся дело целиком — routine_ids; только один день или разовое дело — task_ids. «Удали всё / очисти всё» — all=true. Сам ты ничего не удаляешь: только предлагаешь, пользователь подтверждает карточкой.
+Если просят удалить старое и сделать новое — вызови и propose_delete, и propose_schedule в одном ответе, получится одна карточка.
 Подзадачи (subtasks) добавляй только когда пользователь сам перечислил, из чего состоит задача; сами их не придумывай.`;
 
 const ROUTINE_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "list_routines",
+      description: "Список повторяющихся дел (рутин) пользователя с их id",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_delete",
+      description:
+        "Предложить удалить дела. routine_ids — повторяющиеся дела целиком (с сегодняшнего дня), task_ids — отдельные дела или один день повторяющегося. all=true — удалить вообще всё с сегодняшнего дня.",
+      parameters: {
+        type: "object",
+        properties: {
+          all: { type: "boolean", description: "удалить все дела и повторы" },
+          routine_ids: { type: "array", items: { type: "string" } },
+          task_ids: { type: "array", items: { type: "string" } },
+        },
+        required: ["all", "routine_ids", "task_ids"],
+      },
+    },
+  },
   {
     type: "function",
     function: {
@@ -477,8 +546,94 @@ async function runRoutineTool(
   userId: string,
   name: string,
   args: ToolArgs,
+  today: string,
 ) {
   const time = (t: unknown) => (typeof t === "string" && /^\d{1,2}:\d{2}$/.test(t) ? t : null);
+
+  if (name === "list_routines") {
+    const { data } = await supabase
+      .from("routines")
+      .select("id,title,time_of_day,weekdays,active")
+      .eq("user_id", userId)
+      .or(`ends_on.is.null,ends_on.gte.${today}`)
+      .order("time_of_day", { ascending: true })
+      .limit(100);
+    return { result: { routines: data ?? [] }, proposal: null };
+  }
+
+  if (name === "propose_delete") {
+    if (args.all === true) {
+      const [routines, tasks] = await Promise.all([
+        supabase
+          .from("routines")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .or(`ends_on.is.null,ends_on.gte.${today}`),
+        supabase
+          .from("tasks")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("skipped", false)
+          .is("routine_id", null)
+          .gte("scheduled_for", today),
+      ]);
+      const counts = { routines: routines.count ?? 0, tasks: tasks.count ?? 0 };
+      const proposal: AiProposal = { kind: "delete", all: true, counts, items: [] };
+      return { result: { proposed: true, ...counts }, proposal };
+    }
+    const ids = (value: unknown) =>
+      Array.isArray(value) ? value.map(String).filter(Boolean).slice(0, 100) : [];
+    const routineIds = ids(args.routine_ids);
+    const taskIds = ids(args.task_ids);
+    const [routines, tasks] = await Promise.all([
+      routineIds.length
+        ? supabase
+            .from("routines")
+            .select("id,title,time_of_day")
+            .eq("user_id", userId)
+            .in("id", routineIds)
+        : Promise.resolve({
+            data: [] as { id: string; title: string; time_of_day: string | null }[],
+          }),
+      taskIds.length
+        ? supabase
+            .from("tasks")
+            .select("id,title,scheduled_for,scheduled_time,routine_id")
+            .eq("user_id", userId)
+            .in("id", taskIds)
+        : Promise.resolve({
+            data: [] as {
+              id: string;
+              title: string;
+              scheduled_for: string;
+              scheduled_time: string | null;
+              routine_id: string | null;
+            }[],
+          }),
+    ]);
+    const wholeSeries = new Set(routineIds);
+    const items: DeleteProposal["items"] = [
+      ...(routines.data ?? []).map((r) => ({
+        routineId: r.id,
+        title: r.title,
+        time: r.time_of_day?.slice(0, 5) ?? null,
+      })),
+      // A day of a series that is deleted whole anyway is redundant.
+      ...(tasks.data ?? [])
+        .filter((t) => !t.routine_id || !wholeSeries.has(t.routine_id))
+        .map((t) => ({
+          taskId: t.id,
+          title: t.title,
+          date: t.scheduled_for,
+          time: t.scheduled_time?.slice(0, 5) ?? null,
+        })),
+    ];
+    if (!items.length) return { result: { error: "ничего не найдено по этим id" }, proposal: null };
+    return {
+      result: { proposed: true, count: items.length },
+      proposal: { kind: "delete" as const, items },
+    };
+  }
 
   if (name === "list_tasks") {
     let query = supabase
