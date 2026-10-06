@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { ensureRoutineInstances, localIso } from "@/lib/planner";
+import { tr } from "@/lib/i18n";
 
 /**
  * «Что я ещё не сделал» — local notification on demand.
@@ -45,13 +46,13 @@ async function loadPending() {
 export async function remindNow() {
   const pending = await loadPending();
   if (pending.length === 0) {
-    await notify("lumen-done", "Lumen", "Всё сделано на сегодня 🎉");
+    await notify("lumen-done", "Lumen", tr("Всё сделано на сегодня 🎉"));
     return 0;
   }
   const titles = pending
     .slice(0, 5)
     .map((p) => "• " + p.title)
     .join("\n");
-  await notify("lumen-now", `Осталось ${pending.length}`, titles);
+  await notify("lumen-now", tr("Осталось {0}", { 0: pending.length }), titles);
   return pending.length;
 }

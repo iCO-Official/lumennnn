@@ -1,4 +1,5 @@
 import type React from "react";
+import { getLocale } from "@/lib/i18n";
 import { Loader2 } from "lucide-react";
 
 export function Loader() {
@@ -62,7 +63,7 @@ export function Stat({ label, value, sub }: { label: string; value: string; sub?
 }
 
 export function formatDate(iso: string) {
-  return new Intl.DateTimeFormat("ru-RU", {
+  return new Intl.DateTimeFormat(getLocale(), {
     day: "numeric",
     month: "short",
     hour: "2-digit",

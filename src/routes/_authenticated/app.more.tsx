@@ -6,18 +6,19 @@ import { WorkoutsSection, HealthSection } from "@/components/app/activity";
 import { MetricsSection } from "@/components/app/metrics";
 import { GamingSection } from "@/components/app/gaming";
 import { StatsSection } from "@/components/app/stats";
+import { tr } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/app/more")({
-  head: () => ({ meta: [{ title: "Ещё — Lumen" }] }),
+  head: () => ({ meta: [{ title: tr("Ещё — Lumen") }] }),
   component: MorePage,
 });
 
 const TABS = [
-  { id: "workouts", label: "Тренировки", component: WorkoutsSection },
-  { id: "health", label: "Здоровье", component: HealthSection },
-  { id: "metrics", label: "Метрики", component: MetricsSection },
-  { id: "gaming", label: "Игры", component: GamingSection },
-  { id: "stats", label: "Статистика", component: StatsSection },
+  { id: "workouts", label: tr("Тренировки"), component: WorkoutsSection },
+  { id: "health", label: tr("Здоровье"), component: HealthSection },
+  { id: "metrics", label: tr("Метрики"), component: MetricsSection },
+  { id: "gaming", label: tr("Игры"), component: GamingSection },
+  { id: "stats", label: tr("Статистика"), component: StatsSection },
 ] as const;
 
 type Tab = (typeof TABS)[number]["id"];
@@ -31,7 +32,7 @@ function MorePage() {
       <header className="relative z-10 mx-auto flex max-w-4xl items-center justify-between px-5 pt-3 sm:px-8 sm:pt-4">
         <Link
           to="/app"
-          aria-label="Назад"
+          aria-label={tr("Назад")}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/40 backdrop-blur"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -41,7 +42,7 @@ function MorePage() {
       </header>
 
       <main className="relative z-10 mx-auto max-w-4xl px-5 pb-32 pt-6 sm:px-8">
-        <h1 className="mb-4 font-serif text-3xl tracking-tight">Ещё</h1>
+        <h1 className="mb-4 font-serif text-3xl tracking-tight">{tr("Ещё")}</h1>
         <div className="-mx-5 mb-6 flex gap-2 overflow-x-auto px-5 pb-1 sm:mx-0 sm:px-0">
           {TABS.map((t) => (
             <button

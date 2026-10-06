@@ -7,6 +7,7 @@ import { LumenLogo } from "@/components/lumen-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Loader as Loader2 } from "lucide-react";
+import { tr } from "@/lib/i18n";
 
 const searchSchema = z.object({
   mode: z.enum(["signin", "signup"]).catch("signin"),
@@ -16,24 +17,28 @@ export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
-      { title: "Вход в Lumen" },
-      { name: "description", content: "Войди или зарегистрируйся в Lumen — твоём ежедневнике." },
+      { title: tr("Вход в Lumen") },
+      {
+        name: "description",
+        content: tr("Войди или зарегистрируйся в Lumen — твоём ежедневнике."),
+      },
     ],
   }),
   component: AuthPage,
 });
 
-const GENDERS = [
-  { id: "male", label: "Парень" },
-  { id: "female", label: "Девушка" },
-  { id: "other", label: "Другое" },
+// Functions, not constants: the text depends on the request language (SSR).
+const GENDERS = () => [
+  { id: "male", label: tr("Парень") },
+  { id: "female", label: tr("Девушка") },
+  { id: "other", label: tr("Другое") },
 ];
 
-const INTERESTS = [
-  { id: "sport", label: "Спорт и тренировки" },
-  { id: "gaming", label: "Киберспорт / игры" },
-  { id: "nutrition", label: "Питание" },
-  { id: "journal", label: "Мысли и дневник" },
+const INTERESTS = () => [
+  { id: "sport", label: tr("Спорт и тренировки") },
+  { id: "gaming", label: tr("Киберспорт / игры") },
+  { id: "nutrition", label: tr("Питание") },
+  { id: "journal", label: tr("Мысли и дневник") },
 ];
 
 function AuthPage() {
@@ -65,11 +70,11 @@ function AuthPage() {
     setLoading(true);
     try {
       if (isSignup) {
-        if (!name.trim()) throw new Error("Укажи имя");
-        if (!gender) throw new Error("Выбери пол");
+        if (!name.trim()) throw new Error(tr("Укажи имя"));
+        if (!gender) throw new Error(tr("Выбери пол"));
         const ageNum = age ? Number(age) : null;
         if (ageNum !== null && (Number.isNaN(ageNum) || ageNum < 5 || ageNum > 120)) {
-          throw new Error("Возраст выглядит странно");
+          throw new Error(tr("Возраст выглядит странно"));
         }
         const { error } = await supabase.auth.signUp({
           email,
@@ -85,14 +90,16 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        toast.success("Готово! Проверь почту", { description: "Подтверди email и заходи." });
+        toast.success(tr("Готово! Проверь почту"), {
+          description: tr("Подтверди email и заходи."),
+        });
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         navigate({ to: "/app" });
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Что-то пошло не так";
+      const message = err instanceof Error ? err.message : tr("Что-то пошло не так");
       toast.error(message);
     } finally {
       setLoading(false);
@@ -109,7 +116,7 @@ function AuthPage() {
       });
       if (error) throw error;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Не удалось войти";
+      const message = err instanceof Error ? err.message : tr("Не удалось войти");
       toast.error(message);
     } finally {
       setOauthLoading(null);
@@ -124,7 +131,7 @@ function AuthPage() {
           className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span translate="no">Назад</span>
+          <span translate="no">{tr("Назад")}</span>
         </Link>
         <LumenLogo />
         <ThemeToggle />
@@ -138,12 +145,12 @@ function AuthPage() {
           className="rounded-3xl border border-border bg-card p-7 shadow-2xl shadow-black/30"
         >
           <h1 className="font-serif text-3xl tracking-tight">
-            {isSignup ? "Добро пожаловать" : "С возвращением"}
+            {isSignup ? tr("Добро пожаловать") : tr("С возвращением")}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {isSignup
-              ? "Расскажи пару штук о себе — AI будет общаться по-человечески."
-              : "Войди, чтобы продолжить."}
+              ? tr("Расскажи пару штук о себе — AI будет общаться по-человечески.")
+              : tr("Войди, чтобы продолжить.")}
           </p>
 
           <div className="mt-6 flex flex-col gap-2">
@@ -158,13 +165,13 @@ function AuthPage() {
               ) : (
                 <GoogleIcon />
               )}
-              Продолжить с Google
+              {tr("Продолжить с Google")}
             </button>
           </div>
 
           <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" />
-            или с email
+            {tr("или с email")}
             <div className="h-px flex-1 bg-border" />
           </div>
 
@@ -173,7 +180,7 @@ function AuthPage() {
               <>
                 <input
                   type="text"
-                  placeholder="Как тебя зовут"
+                  placeholder={tr("Как тебя зовут")}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -181,7 +188,7 @@ function AuthPage() {
                 />
                 <input
                   type="number"
-                  placeholder="Возраст"
+                  placeholder={tr("Возраст")}
                   value={age}
                   onChange={(e) => setAge(e.target.value)}
                   min={5}
@@ -189,7 +196,7 @@ function AuthPage() {
                   className="h-11 rounded-xl border border-input bg-background px-4 text-sm outline-none transition-colors focus:border-foreground"
                 />
                 <div className="flex gap-2">
-                  {GENDERS.map((g) => (
+                  {GENDERS().map((g) => (
                     <button
                       key={g.id}
                       type="button"
@@ -205,7 +212,7 @@ function AuthPage() {
                   ))}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {INTERESTS.map((it) => {
+                  {INTERESTS().map((it) => {
                     const active = interests.includes(it.id);
                     return (
                       <button
@@ -239,7 +246,7 @@ function AuthPage() {
             />
             <input
               type="password"
-              placeholder="Пароль"
+              placeholder={tr("Пароль")}
               required
               minLength={6}
               value={password}
@@ -252,18 +259,18 @@ function AuthPage() {
               className="mt-2 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSignup ? "Создать аккаунт" : "Войти"}
+              {isSignup ? tr("Создать аккаунт") : tr("Войти")}
             </button>
           </form>
 
           <div className="mt-5 text-center text-sm text-muted-foreground">
-            {isSignup ? "Уже есть аккаунт? " : "Нет аккаунта? "}
+            {isSignup ? tr("Уже есть аккаунт? ") : tr("Нет аккаунта? ")}
             <Link
               to="/auth"
               search={{ mode: isSignup ? "signin" : "signup" }}
               className="text-foreground underline-offset-4 hover:underline"
             >
-              {isSignup ? "Войти" : "Зарегистрироваться"}
+              {isSignup ? tr("Войти") : tr("Зарегистрироваться")}
             </Link>
           </div>
         </motion.div>

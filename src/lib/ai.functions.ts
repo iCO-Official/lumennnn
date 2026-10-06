@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { getLangName, tr } from "@/lib/i18n";
 
 // Google Gemini by default, via its OpenAI-compatible endpoint. Any other
 // OpenAI-compatible API works too: set AI_API_URL / AI_MODEL.
@@ -182,17 +183,18 @@ async function rawGateway(messages: Msg[], tools?: unknown[]): Promise<GwChoice[
         return data?.choices?.[0]?.message ?? { content: "" };
       }
       lastStatus = res.status;
-      if (res.status === 402) throw new Error("Закончились AI-кредиты.");
+      if (res.status === 402) throw new Error(tr("Закончились AI-кредиты."));
       if (res.status === 401 || res.status === 403)
-        throw new Error("Ключ AI не подходит (AI_API_KEY).");
+        throw new Error(tr("Ключ AI не подходит (AI_API_KEY)."));
       if (![429, 500, 503].includes(res.status)) break; // e.g. unknown fallback model: try the next one
       if (attempt === 0) await sleep(1200);
     }
   }
-  if (lastStatus === 429) throw new Error("Слишком много запросов к AI. Попробуй через минуту.");
+  if (lastStatus === 429)
+    throw new Error(tr("Слишком много запросов к AI. Попробуй через минуту."));
   if (lastStatus === 503 || lastStatus === 500)
-    throw new Error("AI сейчас перегружен. Попробуй через минуту.");
-  throw new Error(`AI не ответил (${lastStatus}).`);
+    throw new Error(tr("AI сейчас перегружен. Попробуй через минуту."));
+  throw new Error(tr("AI не ответил ({0}).", { 0: lastStatus }));
 }
 
 export const CHAT_IMAGES_BUCKET = "chat-images";
@@ -233,7 +235,7 @@ function toBase64(bytes: Uint8Array) {
 
 async function loadChatImage(supabase: { storage: SupabaseStorage }, path: string) {
   const { data, error } = await supabase.storage.from(CHAT_IMAGES_BUCKET).download(path);
-  if (error || !data) throw new Error("Не удалось прочитать фото");
+  if (error || !data) throw new Error(tr("Не удалось прочитать фото"));
   const bytes = new Uint8Array(await data.arrayBuffer());
   return `data:${data.type || "image/jpeg"};base64,${toBase64(bytes)}`;
 }
@@ -276,7 +278,7 @@ function friendSystemPrompt(
 - слушай и задавай уточняющие вопросы, а не сразу советы;
 - даёшь конкретику, а не общие слова;
 - не используй emoji-спам, максимум 1 эмодзи на сообщение и не всегда;
-- отвечай на том языке, на котором пишет пользователь (обычно русский);
+- язык интерфейса пользователя: ${getLangName()}. Отвечай на нём (если пользователь пишет на другом языке — на языке пользователя); тексты, советы и названия дел пиши на этом же языке;
 - анализируй абсолютно все данные пользователя — сон, тренировки, здоровье, игры, кастомные метрики, дневник.
 
 ${ctx.length ? "Что ты знаешь о собеседнике:\n" + ctx.join("\n") : ""}`;
@@ -298,7 +300,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const imagePath = data.imagePath ?? null;
     if (imagePath && !new RegExp(`^${userId}/[\\w-]+\\.(jpe?g|png|webp)$`).test(imagePath)) {
-      throw new Error("Некорректное фото");
+      throw new Error(tr("Некорректное фото"));
     }
     const text = data.message.trim() || "Посмотри на фото.";
 
@@ -378,7 +380,7 @@ export const chatWithAi = createServerFn({ method: "POST" })
       reply = m.content ?? "";
       break;
     }
-    if (!reply) reply = "Готово.";
+    if (!reply) reply = tr("Готово.");
     const proposal = mergeProposals(proposals);
 
     const rows: Database["public"]["Tables"]["ai_messages"]["Insert"][] = [

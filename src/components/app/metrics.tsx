@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Empty, Loader } from "./shared";
+import { tr } from "@/lib/i18n";
 
 type Metric = {
   id: string;
@@ -77,7 +78,7 @@ export function MetricsSection() {
   }
 
   async function removeMetric(id: string) {
-    if (!confirm("Удалить метрику и все её записи?")) return;
+    if (!confirm(tr("Удалить метрику и все её записи?"))) return;
     setMetrics((ms) => ms.filter((m) => m.id !== id));
     await supabase.from("custom_metrics").delete().eq("id", id);
     setLogs((ls) => ls.filter((l) => l.metric_id !== id));
@@ -102,7 +103,7 @@ export function MetricsSection() {
     if (error) toast.error(error.message);
     else if (data) {
       setLogs((ls) => [data as MetricLog, ...ls]);
-      toast.success("Записано");
+      toast.success(tr("Записано"));
     }
   }
 
@@ -114,15 +115,16 @@ export function MetricsSection() {
   return (
     <div>
       <div className="mb-4 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
-        Создай свои переменные — например «Кофе чашек», «Настроение», «Время в коде». AI будет
-        анализировать всё.
+        {tr(
+          "Создай свои переменные — например «Кофе чашек», «Настроение», «Время в коде». AI будет анализировать всё.",
+        )}
       </div>
 
       <form onSubmit={addMetric} className="mb-6 rounded-2xl border border-border bg-card p-4">
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="Название метрики"
+          placeholder={tr("Название метрики")}
           className="mb-3 h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground"
         />
         <div className="mb-3 flex gap-2">
@@ -133,7 +135,7 @@ export function MetricsSection() {
               onClick={() => setNewKind(k)}
               className={`h-10 flex-1 rounded-xl border text-xs transition-colors ${newKind === k ? "border-foreground bg-foreground text-background" : "border-input text-muted-foreground hover:text-foreground"}`}
             >
-              {k === "number" ? "Число" : "Текст"}
+              {k === "number" ? tr("Число") : tr("Текст")}
             </button>
           ))}
         </div>
@@ -141,7 +143,7 @@ export function MetricsSection() {
           <input
             value={newUnit}
             onChange={(e) => setNewUnit(e.target.value)}
-            placeholder="Единицы (необязательно): чашек, км, мин"
+            placeholder={tr("Единицы (необязательно): чашек, км, мин")}
             className="mb-3 h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground"
           />
         )}
@@ -150,14 +152,14 @@ export function MetricsSection() {
           disabled={!newName.trim()}
           className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40"
         >
-          <Plus className="h-4 w-4" /> Создать метрику
+          <Plus className="h-4 w-4" /> {tr("Создать метрику")}
         </button>
       </form>
 
       {loading ? (
         <Loader />
       ) : metrics.length === 0 ? (
-        <Empty text="Пока нет метрик." />
+        <Empty text={tr("Пока нет метрик.")} />
       ) : (
         <ul className="flex flex-col gap-3">
           {metrics.map((m) => (
@@ -201,7 +203,9 @@ function MetricCard({
         <div>
           <div className="text-sm font-medium">{metric.name}</div>
           <div className="text-xs text-muted-foreground">
-            {metric.kind === "number" ? `Число${metric.unit ? ` · ${metric.unit}` : ""}` : "Текст"}
+            {metric.kind === "number"
+              ? tr("Число{0}", { 0: metric.unit ? ` · ${metric.unit}` : "" })
+              : tr("Текст")}
           </div>
         </div>
         <button onClick={onRemove} className="text-muted-foreground hover:text-destructive">
@@ -214,7 +218,11 @@ function MetricCard({
           step="any"
           value={val}
           onChange={(e) => setVal(e.target.value)}
-          placeholder={metric.kind === "number" ? `Сегодня ${metric.unit ?? ""}` : "Что записать?"}
+          placeholder={
+            metric.kind === "number"
+              ? tr("Сегодня {0}", { 0: metric.unit ?? "" })
+              : tr("Что записать?")
+          }
           className="h-10 flex-1 rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground"
         />
         <button

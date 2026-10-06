@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { SettingsView } from "@/components/app/settings";
+import { tr } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
-  head: () => ({ meta: [{ title: "Настройки — Lumen" }] }),
+  head: () => ({ meta: [{ title: tr("Настройки — Lumen") }] }),
   component: SettingsPage,
 });
 
@@ -14,7 +15,7 @@ function SettingsPage() {
       <header className="relative z-10 mx-auto flex max-w-2xl items-center gap-3 px-5 pt-3 sm:px-8 sm:pt-4">
         <Link
           to="/app"
-          aria-label="Назад"
+          aria-label={tr("Назад")}
           className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-card"
         >
           <ArrowLeft className="h-5 w-5" />

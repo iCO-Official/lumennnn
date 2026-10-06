@@ -35,6 +35,7 @@ import {
 import { AppSheet } from "@/components/ui/app-sheet";
 import { useHideDone } from "@/lib/use-local-flag";
 import { SubtaskCount, SubtaskList, TaskEditor } from "@/components/planner-sections";
+import { getLang, getLocale, tr } from "@/lib/i18n";
 
 export type Section = "home" | "plans" | "settings" | "journal" | "sleep" | "ai" | "metrics";
 
@@ -59,11 +60,11 @@ function pickFocus(tasks: PlannerTask[], nowMin: number) {
 }
 
 function formatIn(minutes: number) {
-  if (minutes < 1) return "сейчас";
-  if (minutes < 60) return `через ${minutes} мин`;
+  if (minutes < 1) return tr("сейчас");
+  if (minutes < 60) return tr("через {0} мин", { 0: minutes });
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m ? `через ${h} ч ${m} мин` : `через ${h} ч`;
+  return m ? tr("через {0} ч {1} мин", { 0: h, 1: m }) : tr("через {0} ч", { 0: h });
 }
 
 export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
@@ -104,7 +105,7 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
     try {
       await setTaskCompleted(task, completed);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось сохранить"));
       void refresh();
     }
   }
@@ -115,7 +116,7 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
     try {
       await saveSubtasks(next);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось сохранить"));
       void refresh();
     }
   }
@@ -159,9 +160,9 @@ function DayProgress({ done, total, loading }: { done: number; total: number; lo
     <div className="rounded-3xl bg-card p-5">
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">Сегодня</p>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">{tr("Сегодня")}</p>
           <p className="mt-1 font-serif text-3xl leading-none">
-            {loading ? "—" : total ? `${done} из ${total}` : "Свободный день"}
+            {loading ? "—" : total ? tr("{0} из {1}", { 0: done, 1: total }) : tr("Свободный день")}
           </p>
         </div>
         {total > 0 && <p className="font-mono text-sm tabular-nums">{percent}%</p>}
@@ -198,17 +199,18 @@ function NowNext({
   let focus: PlannerTask | null = null;
   let meta = "";
   if (current) {
-    label = "Сейчас";
+    label = tr("Сейчас");
     focus = current.task;
-    meta = `с ${current.task.scheduled_time!.slice(0, 5)}`;
+    meta = tr("с {0}", { 0: current.task.scheduled_time!.slice(0, 5) });
   } else if (next) {
-    label = "Дальше";
+    label = tr("Дальше");
     focus = next.task;
     meta = `${next.task.scheduled_time!.slice(0, 5)} · ${formatIn(next.start - nowMin)}`;
   } else if (untimed.length) {
-    label = "Без времени";
+    label = tr("Без времени");
     focus = untimed[0];
-    meta = untimed.length > 1 ? `и ещё ${untimed.length - 1}` : "последнее на сегодня";
+    meta =
+      untimed.length > 1 ? tr("и ещё {0}", { 0: untimed.length - 1 }) : tr("последнее на сегодня");
   }
 
   if (!focus) {
@@ -216,17 +218,17 @@ function NowNext({
     return (
       <div className="rounded-3xl bg-card p-5">
         <p className="text-xs uppercase tracking-widest text-muted-foreground">
-          {allDone ? "Готово" : "План пуст"}
+          {allDone ? tr("Готово") : tr("План пуст")}
         </p>
         <p className="mt-2 text-lg">
-          {allDone ? "Все дела на сегодня сделаны 🎉" : "Добавь первое дело на сегодня"}
+          {allDone ? tr("Все дела на сегодня сделаны 🎉") : tr("Добавь первое дело на сегодня")}
         </p>
         {!allDone && (
           <button
             onClick={onAdd}
             className="mt-4 inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-5 text-sm font-medium text-background"
           >
-            <Plus className="h-4 w-4" /> Добавить дело
+            <Plus className="h-4 w-4" /> {tr("Добавить дело")}
           </button>
         )}
       </div>
@@ -237,7 +239,7 @@ function NowNext({
   return (
     <div className="relative overflow-hidden rounded-3xl bg-foreground p-5 text-background">
       <div className="flex items-center gap-2 text-xs uppercase tracking-widest opacity-60">
-        {label === "Сейчас" && (
+        {label === tr("Сейчас") && (
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -256,7 +258,7 @@ function NowNext({
           <p className="mt-2 font-serif text-3xl leading-tight">{target.title}</p>
           <p className="mt-1 text-sm opacity-60">
             {meta}
-            {target.routine_id && " · повтор"}
+            {target.routine_id && tr(" · повтор")}
             {target.subtasks.length > 0 &&
               ` · ${target.subtasks.filter((st) => st.done).length}/${target.subtasks.length}`}
           </p>
@@ -276,9 +278,13 @@ function NowNext({
           onClick={() => onDone(target)}
           className="inline-flex h-11 items-center gap-2 rounded-full bg-background px-5 text-sm font-medium text-foreground"
         >
-          <Check className="h-4 w-4" /> Готово
+          <Check className="h-4 w-4" /> {tr("Готово")}
         </button>
-        {overdue > 0 && <span className="text-xs opacity-60">{overdue} пропущено раньше</span>}
+        {overdue > 0 && (
+          <span className="text-xs opacity-60">
+            {overdue} {tr("пропущено раньше")}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -339,7 +345,7 @@ function Timeline({
         <motion.button
           whileTap={{ scale: 0.8 }}
           onClick={() => onToggle(task)}
-          aria-label={task.completed ? "Вернуть" : "Выполнить"}
+          aria-label={task.completed ? tr("Вернуть") : tr("Выполнить")}
           className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${task.completed ? "border-foreground bg-foreground text-background" : "border-muted-foreground/60"}`}
         >
           {task.completed && <Check className="h-4 w-4" strokeWidth={3} />}
@@ -354,7 +360,7 @@ function Timeline({
         onClick={onAll}
         className="flex w-full items-center justify-between px-4 pb-2 pt-4 text-xs uppercase tracking-widest text-muted-foreground"
       >
-        План на день <ChevronRight className="h-4 w-4" />
+        {tr("План на день")} <ChevronRight className="h-4 w-4" />
       </button>
       {doneCount > 0 && (
         <button
@@ -363,10 +369,10 @@ function Timeline({
         >
           <span className="flex items-center gap-1.5">
             <Check className="h-3.5 w-3.5" />
-            Выполнено: {doneCount}
+            {tr("Выполнено:")} {doneCount}
           </span>
           <span className="flex items-center gap-1 text-foreground">
-            {hideDone ? "Показать" : "Свернуть"}
+            {hideDone ? tr("Показать") : tr("Свернуть")}
             <ChevronDown
               className={`h-3.5 w-3.5 transition-transform duration-200 ${hideDone ? "" : "rotate-180"}`}
             />
@@ -377,7 +383,7 @@ function Timeline({
       {untimed.length > 0 && (
         <>
           <p className="px-4 pb-1 pt-4 text-xs uppercase tracking-widest text-muted-foreground">
-            Без времени
+            {tr("Без времени")}
           </p>
           <ul className="divide-y divide-border">{untimed.map((t) => row(t, false))}</ul>
         </>
@@ -388,9 +394,9 @@ function Timeline({
 
 function QuickActions({ onAdd, onGo }: { onAdd: () => void; onGo: (s: Section) => void }) {
   const items = [
-    { label: "Дело", icon: Plus, action: onAdd, primary: true },
+    { label: tr("Дело"), icon: Plus, action: onAdd, primary: true },
     {
-      label: "Повторы",
+      label: tr("Повторы"),
       icon: CalendarClock,
       action: () => {
         onGo("plans");
@@ -400,8 +406,8 @@ function QuickActions({ onAdd, onGo }: { onAdd: () => void; onGo: (s: Section) =
         );
       },
     },
-    { label: "Сон", icon: Moon, action: () => onGo("sleep") },
-    { label: "Метрики", icon: Ruler, action: () => onGo("metrics") },
+    { label: tr("Сон"), icon: Moon, action: () => onGo("sleep") },
+    { label: tr("Метрики"), icon: Ruler, action: () => onGo("metrics") },
   ];
   return (
     <div className="grid grid-cols-4 gap-2">
@@ -425,7 +431,7 @@ function BriefCard({ onGo }: { onGo: (s: Section) => void }) {
   const [showTips, setShowTips] = useState(false);
 
   useEffect(() => {
-    const cacheKey = "lumen-brief-" + localIso();
+    const cacheKey = `lumen-brief-${localIso()}-${getLang()}`;
     try {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -445,7 +451,7 @@ function BriefCard({ onGo }: { onGo: (s: Section) => void }) {
           // Not cached; fine.
         }
       } catch {
-        setData({ emoji: "🙂", mood: "", message: "Я рядом. Расскажи, как день?", tips: [] });
+        setData({ emoji: "🙂", mood: "", message: tr("Я рядом. Расскажи, как день?"), tips: [] });
       }
     })();
   }, [brief]);
@@ -466,7 +472,7 @@ function BriefCard({ onGo }: { onGo: (s: Section) => void }) {
             <Sparkles className="h-3 w-3" /> {data?.mood || "Lumen AI"}
           </p>
           <p className="mt-1.5 text-sm leading-relaxed">
-            {data?.message ?? "Собираю мысли про твой день…"}
+            {data?.message ?? tr("Собираю мысли про твой день…")}
           </p>
         </div>
       </div>
@@ -492,14 +498,14 @@ function BriefCard({ onGo }: { onGo: (s: Section) => void }) {
           onClick={() => onGo("ai")}
           className="inline-flex h-10 items-center gap-2 rounded-full bg-foreground px-4 text-sm font-medium text-background"
         >
-          <Sparkles className="h-4 w-4" /> Поговорить
+          <Sparkles className="h-4 w-4" /> {tr("Поговорить")}
         </button>
         {!!data?.tips?.length && (
           <button
             onClick={() => setShowTips((v) => !v)}
             className="inline-flex h-10 items-center rounded-full bg-secondary px-4 text-sm"
           >
-            {showTips ? "Скрыть советы" : `Советы · ${data.tips.length}`}
+            {showTips ? tr("Скрыть советы") : tr("Советы · {0}", { 0: data.tips.length })}
           </button>
         )}
       </div>
@@ -522,9 +528,9 @@ function RemindersButton() {
       await enablePush();
       await requestTestPush();
       setPushStatus("on");
-      toast.success("Готово! В течение минуты придёт тестовое уведомление");
+      toast.success(tr("Готово! В течение минуты придёт тестовое уведомление"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось включить уведомления");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось включить уведомления"));
       setPushStatus(await getPushStatus());
     } finally {
       setEnabling(false);
@@ -536,14 +542,15 @@ function RemindersButton() {
   if (pushStatus === "needs-install")
     return (
       <p className="rounded-3xl bg-card p-4 text-center text-sm text-muted-foreground">
-        Чтобы получать напоминания, добавь Lumen на экран «Домой» (Поделиться → На экран «Домой») и
-        открой оттуда.
+        {tr(
+          "Чтобы получать напоминания, добавь Lumen на экран «Домой» (Поделиться → На экран «Домой») и открой оттуда.",
+        )}
       </p>
     );
   if (pushStatus && pushStatus !== "on")
     return (
       <button onClick={enableNotifications} disabled={enabling} className={base}>
-        <Bell className="h-4 w-4" /> {enabling ? "Включаю…" : "Включить напоминания"}
+        <Bell className="h-4 w-4" /> {enabling ? tr("Включаю…") : tr("Включить напоминания")}
       </button>
     );
   if (pushStatus === "on")
@@ -551,11 +558,13 @@ function RemindersButton() {
       <button
         onClick={async () => {
           const left = await remindNow();
-          toast.success(left === 0 ? "Всё сделано на сегодня 🎉" : `Осталось дел: ${left}`);
+          toast.success(
+            left === 0 ? tr("Всё сделано на сегодня 🎉") : tr("Осталось дел: {0}", { 0: left }),
+          );
         }}
         className={base}
       >
-        <Bell className="h-4 w-4" /> Что я ещё не сделал
+        <Bell className="h-4 w-4" /> {tr("Что я ещё не сделал")}
       </button>
     );
   return null;
@@ -563,14 +572,14 @@ function RemindersButton() {
 
 export function greeting() {
   const h = new Date().getHours();
-  if (h < 6) return "Доброй ночи";
-  if (h < 12) return "Доброе утро";
-  if (h < 18) return "Добрый день";
-  return "Добрый вечер";
+  if (h < 6) return tr("Доброй ночи");
+  if (h < 12) return tr("Доброе утро");
+  if (h < 18) return tr("Добрый день");
+  return tr("Добрый вечер");
 }
 
 export function todayLabel() {
-  return new Intl.DateTimeFormat("ru-RU", {
+  return new Intl.DateTimeFormat(getLocale(), {
     weekday: "long",
     day: "numeric",
     month: "long",

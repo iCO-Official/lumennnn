@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { tr } from "@/lib/i18n";
 
 // Web Push subscription for this device. Reminders themselves are sent by the
 // server (api/push-tick), so they arrive even when the app is closed.
@@ -53,16 +54,16 @@ export async function enablePush() {
   const status = await getPushStatus();
   if (status === "needs-install")
     throw new Error(
-      "Добавь Lumen на экран «Домой» и открой оттуда — iPhone присылает уведомления только так",
+      tr("Добавь Lumen на экран «Домой» и открой оттуда — iPhone присылает уведомления только так"),
     );
-  if (status === "unsupported") throw new Error("Этот браузер не поддерживает уведомления");
+  if (status === "unsupported") throw new Error(tr("Этот браузер не поддерживает уведомления"));
 
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") throw new Error("Разреши уведомления для Lumen в настройках");
+  if (permission !== "granted") throw new Error(tr("Разреши уведомления для Lumen в настройках"));
 
   const { data: publicKey, error } = await supabase.rpc("push_public_key");
   if (error) throw error;
-  if (!publicKey) throw new Error("Сервер уведомлений ещё запускается — попробуй через минуту");
+  if (!publicKey) throw new Error(tr("Сервер уведомлений ещё запускается — попробуй через минуту"));
 
   const reg = await registration();
   let sub = await reg.pushManager.getSubscription();
@@ -76,7 +77,7 @@ export async function enablePush() {
 
 async function saveSubscription(sub: PushSubscription) {
   const { data: u } = await supabase.auth.getUser();
-  if (!u.user) throw new Error("Войди в аккаунт");
+  if (!u.user) throw new Error(tr("Войди в аккаунт"));
   const json = sub.toJSON();
   const { error } = await supabase.from("push_subscriptions").upsert(
     {
@@ -109,7 +110,7 @@ export async function disablePush() {
 /** The server sends a test notification to this device within a minute. */
 export async function requestTestPush() {
   const sub = await (await registration()).pushManager.getSubscription();
-  if (!sub) throw new Error("Уведомления на этом устройстве выключены");
+  if (!sub) throw new Error(tr("Уведомления на этом устройстве выключены"));
   const { error } = await supabase
     .from("push_subscriptions")
     .update({ test_requested: true })

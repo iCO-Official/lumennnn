@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Plus, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Empty, Field, Loader, MoodPicker, moodEmoji } from "./shared";
+import { tr } from "@/lib/i18n";
 
 export type Workout = {
   id: string;
@@ -55,7 +56,7 @@ export function WorkoutsSection() {
     else if (data) {
       setItems((l) => [data as Workout, ...l]);
       setTitle("");
-      toast.success("Записано");
+      toast.success(tr("Записано"));
     }
   }
 
@@ -66,10 +67,10 @@ export function WorkoutsSection() {
 
   const KINDS = ["strength", "cardio", "stretch", "sport"];
   const labels: Record<string, string> = {
-    strength: "Сила",
-    cardio: "Кардио",
-    stretch: "Растяжка",
-    sport: "Спорт",
+    strength: tr("Сила"),
+    cardio: tr("Кардио"),
+    stretch: tr("Растяжка"),
+    sport: tr("Спорт"),
   };
 
   return (
@@ -78,7 +79,7 @@ export function WorkoutsSection() {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Например: ноги, бег 5 км"
+          placeholder={tr("Например: ноги, бег 5 км")}
           className="mb-3 h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none focus:border-foreground"
         />
         <div className="mb-3 flex flex-wrap gap-1.5">
@@ -101,10 +102,10 @@ export function WorkoutsSection() {
             onChange={(e) => setDuration(e.target.value)}
             className="h-11 w-24 rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground"
           />
-          <span className="text-sm text-muted-foreground">минут</span>
+          <span className="text-sm text-muted-foreground">{tr("минут")}</span>
         </div>
         <div className="mb-3">
-          <div className="mb-1.5 text-xs text-muted-foreground">Интенсивность</div>
+          <div className="mb-1.5 text-xs text-muted-foreground">{tr("Интенсивность")}</div>
           <MoodPicker value={intensity} onChange={setIntensity} />
         </div>
         <button
@@ -112,14 +113,14 @@ export function WorkoutsSection() {
           className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background"
         >
           <Plus className="h-4 w-4" />
-          Добавить тренировку
+          {tr("Добавить тренировку")}
         </button>
       </form>
 
       {loading ? (
         <Loader />
       ) : items.length === 0 ? (
-        <Empty text="Ещё ни одной тренировки." />
+        <Empty text={tr("Ещё ни одной тренировки.")} />
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((w) => (
@@ -130,7 +131,8 @@ export function WorkoutsSection() {
               <div>
                 <div className="text-sm font-medium">{w.title}</div>
                 <div className="text-xs text-muted-foreground">
-                  {w.workout_date} · {labels[w.kind || ""] ?? w.kind} · {w.duration_min ?? 0} мин
+                  {w.workout_date} · {labels[w.kind || ""] ?? w.kind} · {w.duration_min ?? 0}{" "}
+                  {tr("мин")}
                 </div>
               </div>
               <button
@@ -206,7 +208,7 @@ export function HealthSection() {
         data as Health,
         ...l.filter((x) => x.log_date !== (data as Health).log_date),
       ]);
-      toast.success("Сохранено");
+      toast.success(tr("Сохранено"));
     }
     setSaving(false);
   }
@@ -215,42 +217,57 @@ export function HealthSection() {
     <div>
       <form onSubmit={save} className="mb-6 rounded-2xl border border-border bg-card p-5">
         <div className="mb-4">
-          <div className="mb-1.5 text-xs text-muted-foreground">Настроение</div>
+          <div className="mb-1.5 text-xs text-muted-foreground">{tr("Настроение")}</div>
           <MoodPicker value={mood} onChange={setMood} />
         </div>
         <div className="mb-4">
-          <div className="mb-1.5 text-xs text-muted-foreground">Энергия</div>
+          <div className="mb-1.5 text-xs text-muted-foreground">{tr("Энергия")}</div>
           <MoodPicker value={energy} onChange={setEnergy} />
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Вода, мл" value={water} onChange={setWater} placeholder="2000" />
-          <Field label="Шаги" value={steps} onChange={setSteps} placeholder="8000" />
-          <Field label="Вес, кг" value={weight} onChange={setWeight} placeholder="70" />
+          <Field label={tr("Вода, мл")} value={water} onChange={setWater} placeholder="2000" />
+          <Field label={tr("Шаги")} value={steps} onChange={setSteps} placeholder="8000" />
+          <Field label={tr("Вес, кг")} value={weight} onChange={setWeight} placeholder="70" />
         </div>
         <button
           type="submit"
           disabled={saving}
           className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40"
         >
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}Сохранить день
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {tr("Сохранить день")}
         </button>
       </form>
 
       {loading ? (
         <Loader />
       ) : logs.length === 0 ? (
-        <Empty text="Записей нет." />
+        <Empty text={tr("Записей нет.")} />
       ) : (
         <ul className="flex flex-col gap-2">
           {logs.slice(0, 10).map((h) => (
             <li key={h.id} className="rounded-2xl border border-border bg-card px-4 py-3 text-sm">
               <div className="mb-1 text-xs text-muted-foreground">{h.log_date}</div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                <span>Настр {moodEmoji(h.mood)}</span>
-                <span>Энерг {moodEmoji(h.energy)}</span>
-                {h.water_ml != null && <span>💧 {h.water_ml}мл</span>}
+                <span>
+                  {tr("Настр")} {moodEmoji(h.mood)}
+                </span>
+                <span>
+                  {tr("Энерг")} {moodEmoji(h.energy)}
+                </span>
+                {h.water_ml != null && (
+                  <span>
+                    💧 {h.water_ml}
+                    {tr("мл")}
+                  </span>
+                )}
                 {h.steps != null && <span>👟 {h.steps}</span>}
-                {h.weight_kg != null && <span>⚖️ {Number(h.weight_kg)}кг</span>}
+                {h.weight_kg != null && (
+                  <span>
+                    ⚖️ {Number(h.weight_kg)}
+                    {tr("кг")}
+                  </span>
+                )}
               </div>
             </li>
           ))}
