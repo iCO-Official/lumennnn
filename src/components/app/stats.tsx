@@ -20,6 +20,7 @@ import {
 import type { Health, Workout } from "./activity";
 import type { Sleep } from "./journal";
 import { Card, Loader, Stat } from "./shared";
+import { tr } from "@/lib/i18n";
 
 type Scope = "day" | "week" | "month";
 
@@ -76,17 +77,17 @@ export function StatsSection() {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <Stat
-          label="Задачи закрыты"
+          label={tr("Задачи закрыты")}
           value={`${taskPct}%`}
           sub={`${tasksDone}/${data.tasks.length}`}
         />
-        <Stat label="Средний сон" value={`${sleepAvg}ч`} sub="14 дней" />
-        <Stat label="Тренировок" value={String(workoutsCount)} sub="за 2 недели" />
-        <Stat label="Настроение" value={moodAvg} sub="из 5" />
+        <Stat label={tr("Средний сон")} value={tr("{0}ч", { 0: sleepAvg })} sub={tr("14 дней")} />
+        <Stat label={tr("Тренировок")} value={String(workoutsCount)} sub={tr("за 2 недели")} />
+        <Stat label={tr("Настроение")} value={moodAvg} sub={tr("из 5")} />
       </div>
 
       {sleepChart.length > 0 && (
-        <Card title="Сон, часы">
+        <Card title={tr("Сон, часы")}>
           <div className="h-40">
             <ResponsiveContainer>
               <LineChart data={sleepChart}>
@@ -109,7 +110,7 @@ export function StatsSection() {
       )}
 
       {moodChart.length > 0 && (
-        <Card title="Настроение и энергия">
+        <Card title={tr("Настроение и энергия")}>
           <div className="h-40">
             <ResponsiveContainer>
               <BarChart data={moodChart}>
@@ -149,7 +150,7 @@ function AnalyzeButton() {
       const r = await fn({ data: { today: localIso() } });
       setResult(r.analysis);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Ошибка");
+      toast.error(e instanceof Error ? e.message : tr("Ошибка"));
     } finally {
       setLoading(false);
     }
@@ -159,7 +160,7 @@ function AnalyzeButton() {
     <div className="rounded-2xl border border-border bg-card p-5">
       <div className="mb-3 flex items-center gap-2">
         <Sparkles className="h-4 w-4" />
-        <span className="text-sm font-medium">AI-разбор недели</span>
+        <span className="text-sm font-medium">{tr("AI-разбор недели")}</span>
       </div>
       <button
         onClick={run}
@@ -167,7 +168,7 @@ function AnalyzeButton() {
         className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-        {loading ? "Думаю…" : "Проанализировать"}
+        {loading ? tr("Думаю…") : tr("Проанализировать")}
       </button>
       {result && (
         <motion.div

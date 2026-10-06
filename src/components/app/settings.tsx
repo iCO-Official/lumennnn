@@ -12,6 +12,7 @@ import {
   Sparkles,
   Sun,
   User,
+  Languages,
 } from "lucide-react";
 import {
   disablePush,
@@ -25,12 +26,13 @@ import { useTheme } from "@/components/theme-provider";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { AI_AUTO_APPLY_KEY, useLocalFlag } from "@/lib/use-local-flag";
+import { LANGUAGES, getLang, getLocale, isLangManual, setLang, tr, type Lang } from "@/lib/i18n";
 
 const INTERESTS = [
-  { id: "sport", label: "Спорт и тренировки" },
-  { id: "gaming", label: "Киберспорт / игры" },
-  { id: "nutrition", label: "Питание" },
-  { id: "journal", label: "Мысли и дневник" },
+  { id: "sport", label: tr("Спорт и тренировки") },
+  { id: "gaming", label: tr("Киберспорт / игры") },
+  { id: "nutrition", label: tr("Питание") },
+  { id: "journal", label: tr("Мысли и дневник") },
 ];
 
 type Stats = {
@@ -111,7 +113,7 @@ export function SettingsView() {
       interests,
     });
     if (error) toast.error(error.message);
-    else toast.success("Профиль сохранён");
+    else toast.success(tr("Профиль сохранён"));
     setSaving(false);
   }
 
@@ -124,7 +126,7 @@ export function SettingsView() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-7">
-      <h1 className="font-serif text-4xl tracking-tight">Настройки</h1>
+      <h1 className="font-serif text-4xl tracking-tight">{tr("Настройки")}</h1>
 
       {/* Profile card */}
       <div className="flex items-center gap-4 rounded-3xl bg-card p-4">
@@ -132,12 +134,12 @@ export function SettingsView() {
           {initial}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-lg font-medium">{name || "Без имени"}</p>
+          <p className="truncate text-lg font-medium">{name || tr("Без имени")}</p>
           <p className="truncate text-sm text-muted-foreground">{email}</p>
           {since && (
             <p className="text-xs text-muted-foreground">
-              С Lumen с{" "}
-              {new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(
+              {tr("С Lumen с")}{" "}
+              {new Intl.DateTimeFormat(getLocale(), { day: "numeric", month: "long" }).format(
                 new Date(since),
               )}
             </p>
@@ -148,20 +150,28 @@ export function SettingsView() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
         <StatTile
-          label="Сегодня"
+          label={tr("Сегодня")}
           value={stats ? `${stats.todayDone}/${stats.todayTotal}` : "—"}
-          hint="дел выполнено"
+          hint={tr("дел выполнено")}
         />
-        <StatTile label="Повторы" value={stats ? String(stats.routines) : "—"} hint="активных" />
-        <StatTile label="Дневник" value={stats ? String(stats.journal) : "—"} hint="записей" />
         <StatTile
-          label="Сон"
-          value={stats?.sleepAvg != null ? `${stats.sleepAvg.toFixed(1)} ч` : "—"}
-          hint="в среднем за неделю"
+          label={tr("Повторы")}
+          value={stats ? String(stats.routines) : "—"}
+          hint={tr("активных")}
+        />
+        <StatTile
+          label={tr("Дневник")}
+          value={stats ? String(stats.journal) : "—"}
+          hint={tr("записей")}
+        />
+        <StatTile
+          label={tr("Сон")}
+          value={stats?.sleepAvg != null ? tr("{0} ч", { 0: stats.sleepAvg.toFixed(1) }) : "—"}
+          hint={tr("в среднем за неделю")}
         />
       </div>
 
-      <Section title="Напоминания" icon={<Bell className="h-4 w-4" />}>
+      <Section title={tr("Напоминания")} icon={<Bell className="h-4 w-4" />}>
         <NotificationsCard />
       </Section>
 
@@ -169,11 +179,15 @@ export function SettingsView() {
         <AiSettings />
       </Section>
 
-      <Section title="Оформление" icon={<Palette className="h-4 w-4" />}>
+      <Section title={tr("Оформление")} icon={<Palette className="h-4 w-4" />}>
         <ThemePicker />
       </Section>
 
-      <Section title="Профиль" icon={<User className="h-4 w-4" />}>
+      <Section title={tr("Язык")} icon={<Languages className="h-4 w-4" />}>
+        <LanguagePicker />
+      </Section>
+
+      <Section title={tr("Профиль")} icon={<User className="h-4 w-4" />}>
         {loading ? (
           <div className="flex h-24 items-center justify-center text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -181,17 +195,17 @@ export function SettingsView() {
         ) : (
           <form onSubmit={save} className="flex flex-col gap-4 p-4">
             <p className="text-xs text-muted-foreground">
-              AI обращается к тебе по имени и учитывает возраст и интересы.
+              {tr("AI обращается к тебе по имени и учитывает возраст и интересы.")}
             </p>
-            <Field label="Имя">
+            <Field label={tr("Имя")}>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Как тебя звать?"
+                placeholder={tr("Как тебя звать?")}
                 className="h-12 w-full rounded-2xl border border-input bg-background px-4 text-base outline-none focus:border-foreground"
               />
             </Field>
-            <Field label="Возраст">
+            <Field label={tr("Возраст")}>
               <input
                 type="number"
                 inputMode="numeric"
@@ -202,12 +216,12 @@ export function SettingsView() {
                 className="h-12 w-full rounded-2xl border border-input bg-background px-4 text-base outline-none focus:border-foreground"
               />
             </Field>
-            <Field label="Пол">
+            <Field label={tr("Пол")}>
               <div className="flex gap-2">
                 {[
-                  { id: "male", label: "Мужской" },
-                  { id: "female", label: "Женский" },
-                  { id: "other", label: "Другое" },
+                  { id: "male", label: tr("Мужской") },
+                  { id: "female", label: tr("Женский") },
+                  { id: "other", label: tr("Другое") },
                 ].map((g) => (
                   <button
                     key={g.id}
@@ -224,7 +238,7 @@ export function SettingsView() {
                 ))}
               </div>
             </Field>
-            <Field label="Интересы">
+            <Field label={tr("Интересы")}>
               <div className="flex flex-wrap gap-2">
                 {INTERESTS.map((it) => {
                   const active = interests.includes(it.id);
@@ -250,25 +264,25 @@ export function SettingsView() {
               disabled={saving}
               className="inline-flex h-12 items-center justify-center rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Сохранить профиль"}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tr("Сохранить профиль")}
             </button>
           </form>
         )}
       </Section>
 
-      <Section title="Разделы" icon={<Sparkles className="h-4 w-4" />}>
+      <Section title={tr("Разделы")} icon={<Sparkles className="h-4 w-4" />}>
         <Link to="/app/more" className="flex items-center justify-between px-4 py-3.5">
           <span>
-            Ещё
+            {tr("Ещё")}
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              Тренировки, здоровье, метрики, игры, статистика
+              {tr("Тренировки, здоровье, метрики, игры, статистика")}
             </span>
           </span>
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </Link>
       </Section>
 
-      <Section title="Приложение" icon={<Smartphone className="h-4 w-4" />}>
+      <Section title={tr("Приложение")} icon={<Smartphone className="h-4 w-4" />}>
         <AppInfo />
       </Section>
 
@@ -277,7 +291,7 @@ export function SettingsView() {
         onClick={signOut}
         className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-card text-sm text-destructive"
       >
-        <LogOut className="h-4 w-4" /> Выйти из аккаунта
+        <LogOut className="h-4 w-4" /> {tr("Выйти из аккаунта")}
       </button>
     </div>
   );
@@ -336,9 +350,9 @@ function AiSettings() {
   return (
     <label className="flex items-center justify-between gap-4 px-4 py-3.5">
       <span>
-        Применять без подтверждения
+        {tr("Применять без подтверждения")}
         <span className="mt-0.5 block text-xs text-muted-foreground">
-          AI сразу добавляет, меняет и удаляет дела. «Удалить всё» всё равно спросит.
+          {tr("AI сразу добавляет, меняет и удаляет дела. «Удалить всё» всё равно спросит.")}
         </span>
       </span>
       <Switch checked={autoApply} onCheckedChange={setAutoApply} />
@@ -346,11 +360,32 @@ function AiSettings() {
   );
 }
 
+function LanguagePicker() {
+  const value = isLangManual() ? getLang() : "auto";
+  return (
+    <label className="flex items-center justify-between gap-4 px-4 py-3">
+      <span className="text-sm">{tr("Язык приложения")}</span>
+      <select
+        value={value}
+        onChange={(e) => setLang(e.target.value as Lang | "auto")}
+        className="h-10 max-w-[55%] rounded-xl border border-input bg-background px-3 text-sm"
+      >
+        <option value="auto">{tr("Как на устройстве")}</option>
+        {LANGUAGES.map((lang) => (
+          <option key={lang.id} value={lang.id}>
+            {lang.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function ThemePicker() {
   const { theme, setTheme } = useTheme();
   const options = [
-    { id: "dark", label: "Тёмная", icon: Moon },
-    { id: "light", label: "Светлая", icon: Sun },
+    { id: "dark", label: tr("Тёмная"), icon: Moon },
+    { id: "light", label: tr("Светлая"), icon: Sun },
   ] as const;
   return (
     <div className="grid grid-cols-2 gap-2 p-2">
@@ -381,24 +416,24 @@ function AppInfo() {
   return (
     <div>
       <Row
-        label="Установлено на экран «Домой»"
-        value={standalone == null ? "—" : standalone ? "Да" : "Нет"}
+        label={tr("Установлено на экран «Домой»")}
+        value={standalone == null ? "—" : standalone ? tr("Да") : tr("Нет")}
       />
       <Row
-        label="Часовой пояс"
+        label={tr("Часовой пояс")}
         value={typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "—"}
       />
-      <Row label="Версия" value={import.meta.env.VITE_APP_VERSION || "dev"} />
+      <Row label={tr("Версия")} value={import.meta.env.VITE_APP_VERSION || "dev"} />
     </div>
   );
 }
 
 const PUSH_TEXT: Record<PushStatus, string> = {
-  on: "Включены на этом устройстве",
-  off: "Выключены",
-  denied: "Запрещены в настройках iPhone: Настройки → Уведомления → Lumen",
-  "needs-install": "Добавь Lumen на экран «Домой» и открой оттуда",
-  unsupported: "Этот браузер не поддерживает уведомления",
+  on: tr("Включены на этом устройстве"),
+  off: tr("Выключены"),
+  denied: tr("Запрещены в настройках iPhone: Настройки → Уведомления → Lumen"),
+  "needs-install": tr("Добавь Lumen на экран «Домой» и открой оттуда"),
+  unsupported: tr("Этот браузер не поддерживает уведомления"),
 };
 
 function NotificationsCard() {
@@ -415,7 +450,7 @@ function NotificationsCard() {
       await action();
       toast.success(success);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не получилось");
+      toast.error(error instanceof Error ? error.message : tr("Не получилось"));
     } finally {
       setStatus(await getPushStatus());
       setBusy(false);
@@ -427,21 +462,21 @@ function NotificationsCard() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between gap-3 text-sm">
-        <span>Статус</span>
+        <span>{tr("Статус")}</span>
         <span
           className={`inline-flex items-center gap-1.5 text-right ${status === "on" ? "text-foreground" : "text-muted-foreground"}`}
         >
           <span
             className={`h-2 w-2 shrink-0 rounded-full ${status === "on" ? "bg-emerald-400" : "bg-muted-foreground/50"}`}
           />
-          {status ? PUSH_TEXT[status] : "Проверяю…"}
+          {status ? PUSH_TEXT[status] : tr("Проверяю…")}
         </span>
       </div>
       <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-        <li>• в момент дела</li>
-        <li>• через час, если дело не отмечено</li>
-        <li>• сводка «что осталось» в 9:00, 13:00, 18:00 и 21:00</li>
-        <li>• приходят, даже когда приложение закрыто</li>
+        <li>{tr("• в момент дела")}</li>
+        <li>{tr("• через час, если дело не отмечено")}</li>
+        <li>{tr("• сводка «что осталось» в 9:00, 13:00, 18:00 и 21:00")}</li>
+        <li>{tr("• приходят, даже когда приложение закрыто")}</li>
       </ul>
       {(status === "on" || status === "off") && (
         <div className="mt-4 flex gap-2">
@@ -453,26 +488,28 @@ function NotificationsCard() {
                 run(async () => {
                   await enablePush();
                   await requestTestPush();
-                }, "Включено. Тестовое уведомление придёт в течение минуты")
+                }, tr("Включено. Тестовое уведомление придёт в течение минуты"))
               }
             >
-              Включить
+              {tr("Включить")}
             </button>
           ) : (
             <>
               <button
                 disabled={busy}
                 className={button}
-                onClick={() => run(requestTestPush, "Тестовое уведомление придёт в течение минуты")}
+                onClick={() =>
+                  run(requestTestPush, tr("Тестовое уведомление придёт в течение минуты"))
+                }
               >
-                Проверить
+                {tr("Проверить")}
               </button>
               <button
                 disabled={busy}
                 className={button}
-                onClick={() => run(disablePush, "Напоминания выключены")}
+                onClick={() => run(disablePush, tr("Напоминания выключены"))}
               >
-                Выключить
+                {tr("Выключить")}
               </button>
             </>
           )}

@@ -46,14 +46,15 @@ import {
   type PlannerTask,
 } from "@/lib/planner";
 import { parseScheduleLines, repeatLabel } from "@/lib/routine-schedule";
+import { getLocale, tr } from "@/lib/i18n";
 
-const SHORT_DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+const SHORT_DAYS = [tr("Вс"), tr("Пн"), tr("Вт"), tr("Ср"), tr("Чт"), tr("Пт"), tr("Сб")];
 const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
 type View = "day" | "week" | "month";
 type ScopeAction = { task: PlannerTask; mode: "edit" | "delete" } | null;
 
 const formatShortDate = (iso: string) =>
-  new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(
+  new Intl.DateTimeFormat(getLocale(), { day: "numeric", month: "short" }).format(
     new Date(`${iso}T12:00:00`),
   );
 
@@ -91,7 +92,7 @@ export function PlansSection() {
     try {
       setTasks(await loadTasks(range.from, range.to));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось загрузить планы");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось загрузить планы"));
     } finally {
       setLoading(false);
     }
@@ -122,7 +123,7 @@ export function PlansSection() {
     try {
       await setTaskCompleted(task, completed);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось сохранить"));
       void refresh();
     }
   }
@@ -133,7 +134,7 @@ export function PlansSection() {
     try {
       await saveSubtasks(next);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось сохранить"));
       void refresh();
     }
   }
@@ -157,7 +158,7 @@ export function PlansSection() {
     try {
       await removeTask(task, allFuture);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось удалить");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось удалить"));
       void refresh();
     }
   }
@@ -171,13 +172,13 @@ export function PlansSection() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground">{formatShortDate(selectedDate)}</p>
-          <h2 className="font-serif text-3xl">Планы</h2>
+          <h2 className="font-serif text-3xl">{tr("Планы")}</h2>
         </div>
         <Button
           size="icon"
           className="rounded-full"
           onClick={() => setAdding(true)}
-          aria-label="Добавить задачу"
+          aria-label={tr("Добавить задачу")}
         >
           <Plus />
         </Button>
@@ -186,9 +187,9 @@ export function PlansSection() {
       <div className="grid grid-cols-3 border-b border-border">
         {(
           [
-            ["day", "Сегодня"],
-            ["week", "Неделя"],
-            ["month", "Месяц"],
+            ["day", tr("Сегодня")],
+            ["week", tr("Неделя")],
+            ["month", tr("Месяц")],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -220,7 +221,7 @@ export function PlansSection() {
 
       <div className="space-y-2 border-b border-border pb-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Выполнено</span>
+          <span className="text-muted-foreground">{tr("Выполнено")}</span>
           <strong>
             {done}/{selectedTasks.length} · {percent}%
           </strong>
@@ -234,7 +235,7 @@ export function PlansSection() {
       </div>
 
       {loading && !tasks.length ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">Загрузка…</div>
+        <div className="py-16 text-center text-sm text-muted-foreground">{tr("Загрузка…")}</div>
       ) : (
         <TaskList
           tasks={selectedTasks}
@@ -319,7 +320,7 @@ function TaskList({
   if (!tasks.length)
     return (
       <div className="rounded-2xl bg-card py-12 text-center text-sm text-muted-foreground">
-        На этот день ничего не запланировано
+        {tr("На этот день ничего не запланировано")}
       </div>
     );
   return (
@@ -332,10 +333,10 @@ function TaskList({
         >
           <span className="flex items-center gap-2 text-muted-foreground">
             <Check className="h-4 w-4" />
-            Выполнено: {doneCount}
+            {tr("Выполнено:")} {doneCount}
           </span>
           <span className="flex items-center gap-1">
-            {hideDone ? "Показать" : "Свернуть"}
+            {hideDone ? tr("Показать") : tr("Свернуть")}
             <ChevronDown
               className={`h-4 w-4 transition-transform duration-200 ${hideDone ? "" : "rotate-180"}`}
             />
@@ -354,7 +355,7 @@ function TaskList({
       {untimed.length > 0 && (
         <div>
           <h3 className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Без времени
+            {tr("Без времени")}
           </h3>
           <TaskGroup
             tasks={untimed}
@@ -390,7 +391,7 @@ function TaskGroup({
             <motion.button
               onClick={() => onToggle(task)}
               whileTap={{ scale: 0.8 }}
-              aria-label={task.completed ? "Вернуть задачу" : "Выполнить задачу"}
+              aria-label={task.completed ? tr("Вернуть задачу") : tr("Выполнить задачу")}
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${task.completed ? "border-foreground bg-foreground text-background" : "border-muted-foreground/60"}`}
             >
               <AnimatePresence initial={false}>
@@ -409,7 +410,7 @@ function TaskGroup({
             <button
               type="button"
               onClick={() => onEdit(task)}
-              aria-label={`Изменить «${task.title}»`}
+              aria-label={tr("Изменить «{0}»", { 0: task.title })}
               className="flex min-w-0 flex-1 items-center gap-3 text-left"
             >
               <span className="w-11 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
@@ -424,7 +425,7 @@ function TaskGroup({
                 </span>
                 {task.routine_id && (
                   <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Repeat className="h-3 w-3" /> Повтор
+                    <Repeat className="h-3 w-3" /> {tr("Повтор")}
                   </span>
                 )}
               </span>
@@ -434,7 +435,7 @@ function TaskGroup({
               size="icon-sm"
               className="text-muted-foreground/70"
               onClick={() => onDelete(task)}
-              aria-label="Удалить"
+              aria-label={tr("Удалить")}
             >
               <Trash2 />
             </Button>
@@ -553,7 +554,7 @@ function MonthGrid({
   return (
     <div>
       <div className="mb-2 grid grid-cols-7 text-center text-[10px] text-muted-foreground">
-        {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
+        {[tr("Пн"), tr("Вт"), tr("Ср"), tr("Чт"), tr("Пт"), tr("Сб"), tr("Вс")].map((d) => (
           <span key={d}>{d}</span>
         ))}
       </div>
@@ -657,11 +658,11 @@ export function TaskEditor({
             sortOrder: index,
             subtasks: mode === "one" && !repeatDays.length ? subLines : [],
           });
-        if (items.length > 1) toast.success(`Добавлено: ${items.length}`);
+        if (items.length > 1) toast.success(tr("Добавлено: {0}", { 0: items.length }));
       }
       onSaved();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось сохранить"));
     } finally {
       setSaving(false);
     }
@@ -670,7 +671,11 @@ export function TaskEditor({
     <form onSubmit={save}>
       <div className="mb-5 flex items-center justify-between">
         <h3 className="font-serif text-2xl">
-          {task ? (seriesEdit ? "Изменить все повторы" : "Изменить задачу") : "Новые дела"}
+          {task
+            ? seriesEdit
+              ? tr("Изменить все повторы")
+              : tr("Изменить задачу")
+            : tr("Новые дела")}
         </h3>
         <Button type="button" variant="ghost" size="icon" onClick={onClose}>
           <X />
@@ -681,8 +686,8 @@ export function TaskEditor({
           <div className="grid grid-cols-2 rounded-full border border-border p-1 text-sm">
             {(
               [
-                ["one", "Одно дело"],
-                ["list", "Списком"],
+                ["one", tr("Одно дело")],
+                ["list", tr("Списком")],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -702,19 +707,19 @@ export function TaskEditor({
               value={listText}
               onChange={(e) => setListText(e.target.value)}
               rows={6}
-              placeholder={"06:00 Подъём\n06:05 Стакан воды\n06:10 Душ\nКупить тетрадь"}
+              placeholder={tr("06:00 Подъём\n06:05 Стакан воды\n06:10 Душ\nКупить тетрадь")}
               className="w-full rounded-md border border-input bg-card px-3 py-2 text-base outline-none focus:border-foreground"
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              По строке на дело, время в начале — по желанию.
-              {listItems.length > 0 && ` Дел: ${listItems.length}.`}
+              {tr("По строке на дело, время в начале — по желанию.")}
+              {listItems.length > 0 && tr(" Дел: {0}.", { 0: listItems.length })}
             </p>
           </div>
         ) : (
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название"
+            placeholder={tr("Название")}
             className="h-12 w-full rounded-md border border-input bg-card px-3 text-base outline-none focus:border-foreground"
           />
         )}
@@ -723,7 +728,7 @@ export function TaskEditor({
         >
           {!seriesEdit && (
             <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
-              {repeat === "none" ? "Дата" : "Начиная с"}
+              {repeat === "none" ? tr("Дата") : tr("Начиная с")}
               <input
                 type="date"
                 value={date}
@@ -734,7 +739,7 @@ export function TaskEditor({
           )}
           {mode === "one" && (
             <label className="min-w-0 space-y-1 text-xs text-muted-foreground">
-              Время
+              {tr("Время")}
               <input
                 type="time"
                 value={time}
@@ -747,12 +752,12 @@ export function TaskEditor({
         {subtasksAllowed &&
           (showSubtasks ? (
             <label className="block text-xs text-muted-foreground">
-              Подзадачи — по одной на строку
+              {tr("Подзадачи — по одной на строку")}
               <textarea
                 value={subText}
                 onChange={(e) => setSubText(e.target.value)}
                 rows={4}
-                placeholder={"Русский\nНемецкий\nОбществознание\nБиология"}
+                placeholder={tr("Русский\nНемецкий\nОбществознание\nБиология")}
                 className="mt-1 w-full rounded-md border border-input bg-card px-3 py-2 text-base text-foreground outline-none focus:border-foreground"
               />
             </label>
@@ -762,23 +767,23 @@ export function TaskEditor({
               onClick={() => setShowSubtasks(true)}
               className="inline-flex h-10 items-center gap-2 rounded-full bg-secondary px-4 text-sm"
             >
-              <Plus className="h-4 w-4" /> Подзадачи
+              <Plus className="h-4 w-4" /> {tr("Подзадачи")}
             </button>
           ))}
         {!task && (
           <>
             <label className="block text-xs text-muted-foreground">
-              Повторение
+              {tr("Повторение")}
               <select
                 value={repeat}
                 onChange={(e) => setRepeat(e.target.value as typeof repeat)}
                 className="mt-1 h-12 w-full rounded-md border border-input bg-card px-3 text-base text-foreground"
               >
-                <option value="none">Нет</option>
-                <option value="daily">Каждый день</option>
-                <option value="weekdays">По будням</option>
-                <option value="weekends">По выходным</option>
-                <option value="custom">Выбранные дни</option>
+                <option value="none">{tr("Нет")}</option>
+                <option value="daily">{tr("Каждый день")}</option>
+                <option value="weekdays">{tr("По будням")}</option>
+                <option value="weekends">{tr("По выходным")}</option>
+                <option value="custom">{tr("Выбранные дни")}</option>
               </select>
             </label>
             {repeat === "custom" && <DayPicker value={days} onChange={setDays} />}
@@ -787,10 +792,10 @@ export function TaskEditor({
       </div>
       <Button className="mt-5 h-12 w-full rounded-full" disabled={saving || !canSave}>
         {saving
-          ? "Сохраняю…"
+          ? tr("Сохраняю…")
           : mode === "list" && listItems.length > 1
-            ? `Добавить ${listItems.length}`
-            : "Сохранить"}
+            ? tr("Добавить {0}", { 0: listItems.length })
+            : tr("Сохранить")}
       </Button>
     </form>
   );
@@ -810,20 +815,20 @@ function ScopeDialog({
   return (
     <div>
       <h3 className="font-serif text-2xl">
-        {action.mode === "edit" ? "Что изменить?" : "Что удалить?"}
+        {action.mode === "edit" ? tr("Что изменить?") : tr("Что удалить?")}
       </h3>
       <p className="mt-2 text-sm text-muted-foreground">
-        Это повторяющееся дело. Прошедшие и выполненные дни не изменятся.
+        {tr("Это повторяющееся дело. Прошедшие и выполненные дни не изменятся.")}
       </p>
       <div className="mt-5 space-y-2">
         <Button className="h-11 w-full" onClick={onToday}>
-          {action.mode === "edit" ? "Только этот день" : "Пропустить этот день"}
+          {action.mode === "edit" ? tr("Только этот день") : tr("Пропустить этот день")}
         </Button>
         <Button className="h-11 w-full" variant="secondary" onClick={onFuture}>
-          {action.mode === "edit" ? "Этот и следующие" : "Удалить все повторы с этого дня"}
+          {action.mode === "edit" ? tr("Этот и следующие") : tr("Удалить все повторы с этого дня")}
         </Button>
         <Button className="h-11 w-full" variant="ghost" onClick={onCancel}>
-          Отмена
+          {tr("Отмена")}
         </Button>
       </div>
     </div>
@@ -864,7 +869,7 @@ export function RoutinesSection() {
       setRoutines(await loadRoutines());
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Не удалось загрузить повторяющиеся дела",
+        error instanceof Error ? error.message : tr("Не удалось загрузить повторяющиеся дела"),
       );
     } finally {
       setLoading(false);
@@ -900,16 +905,17 @@ export function RoutinesSection() {
     try {
       await setRoutineActive(routine.id, active);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось сохранить"));
       void refresh();
     }
   }
   async function remove(routine: PlannerRoutine) {
-    if (!confirm(`Удалить «${routine.title}»? Выполненные дни останутся в истории.`)) return;
+    if (!confirm(tr("Удалить «{0}»? Выполненные дни останутся в истории.", { 0: routine.title })))
+      return;
     try {
       await endRoutine(routine, localIso());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось удалить");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось удалить"));
     }
     void refresh();
   }
@@ -917,24 +923,24 @@ export function RoutinesSection() {
     <section className="space-y-5">
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-xs text-muted-foreground">Сами появляются в планах</p>
-          <h2 className="font-serif text-2xl">Повторяющиеся</h2>
+          <p className="text-xs text-muted-foreground">{tr("Сами появляются в планах")}</p>
+          <h2 className="font-serif text-2xl">{tr("Повторяющиеся")}</h2>
         </div>
         <Button
           size="icon"
           variant="secondary"
           className="rounded-full"
           onClick={() => setCreating(true)}
-          aria-label="Добавить повторяющееся дело"
+          aria-label={tr("Добавить повторяющееся дело")}
         >
           <Plus />
         </Button>
       </div>
       {loading && !routines.length ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">Загрузка…</div>
+        <div className="py-16 text-center text-sm text-muted-foreground">{tr("Загрузка…")}</div>
       ) : routines.length === 0 ? (
         <div className="rounded-2xl bg-card py-12 text-center text-sm text-muted-foreground">
-          Пока нет. Нажми + или попроси ИИ: «каждый будний день в 7:00 зарядка»
+          {tr("Пока нет. Нажми + или попроси ИИ: «каждый будний день в 7:00 зарядка»")}
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnd}>
@@ -992,7 +998,7 @@ function RoutineRow({
         {...attributes}
         {...listeners}
         className="touch-none p-2 text-muted-foreground"
-        aria-label="Изменить порядок"
+        aria-label={tr("Изменить порядок")}
       >
         <GripVertical className="h-5 w-5" />
       </button>
@@ -1008,7 +1014,7 @@ function RoutineRow({
       <Switch
         checked={routine.active}
         onCheckedChange={() => onToggle(routine)}
-        aria-label={routine.active ? "Выключить" : "Включить"}
+        aria-label={routine.active ? tr("Выключить") : tr("Включить")}
       />
       <Button variant="ghost" size="icon-sm" onClick={() => onEdit(routine)}>
         <Pencil />
@@ -1053,7 +1059,7 @@ function RoutineEditor({
       }
       onSaved();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      toast.error(error instanceof Error ? error.message : tr("Не удалось сохранить"));
     } finally {
       setSaving(false);
     }
@@ -1062,7 +1068,7 @@ function RoutineEditor({
     <form onSubmit={save}>
       <div className="mb-5 flex items-center justify-between">
         <h3 className="font-serif text-2xl">
-          {routine ? "Изменить повтор" : "Повторяющееся дело"}
+          {routine ? tr("Изменить повтор") : tr("Повторяющееся дело")}
         </h3>
         <Button type="button" variant="ghost" size="icon" onClick={onClose}>
           <X />
@@ -1072,11 +1078,11 @@ function RoutineEditor({
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Название"
+          placeholder={tr("Название")}
           className="h-12 w-full rounded-md border border-input bg-card px-3 text-base"
         />
         <label className="block text-xs text-muted-foreground">
-          Время
+          {tr("Время")}
           <input
             type="time"
             value={time}
@@ -1090,7 +1096,7 @@ function RoutineEditor({
         className="mt-5 h-12 w-full rounded-full"
         disabled={saving || !title.trim() || !days.length}
       >
-        {saving ? "Сохраняю…" : "Сохранить"}
+        {saving ? tr("Сохраняю…") : tr("Сохранить")}
       </Button>
     </form>
   );

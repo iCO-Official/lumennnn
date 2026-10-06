@@ -13,6 +13,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Empty, Loader, MoodPicker, formatDate, moodEmoji } from "./shared";
+import { tr } from "@/lib/i18n";
 
 type Journal = {
   id: string;
@@ -31,13 +32,13 @@ export function JournalSection() {
           onClick={() => setTab("thoughts")}
           className={`border-b-2 py-3 text-sm ${tab === "thoughts" ? "border-foreground" : "border-transparent text-muted-foreground"}`}
         >
-          Мысли
+          {tr("Мысли")}
         </button>
         <button
           onClick={() => setTab("sleep")}
           className={`border-b-2 py-3 text-sm ${tab === "sleep" ? "border-foreground" : "border-transparent text-muted-foreground"}`}
         >
-          Сон
+          {tr("Сон")}
         </button>
       </div>
       {tab === "thoughts" ? <JournalEntriesSection /> : <SleepSection />}
@@ -94,7 +95,7 @@ function JournalEntriesSection() {
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Что в голове сегодня?"
+          placeholder={tr("Что в голове сегодня?")}
           rows={3}
           className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
@@ -110,7 +111,7 @@ function JournalEntriesSection() {
             ) : (
               <Plus className="h-3.5 w-3.5" />
             )}
-            Записать
+            {tr("Записать")}
           </button>
         </div>
       </form>
@@ -118,7 +119,7 @@ function JournalEntriesSection() {
       {loading ? (
         <Loader />
       ) : entries.length === 0 ? (
-        <Empty text="Дневник пуст. Запиши первую мысль." />
+        <Empty text={tr("Дневник пуст. Запиши первую мысль.")} />
       ) : (
         <ul className="flex flex-col gap-2">
           {entries.map((j) => (
@@ -126,7 +127,7 @@ function JournalEntriesSection() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="mb-1 text-xs text-muted-foreground">
-                    {formatDate(j.created_at)} · настроение {moodEmoji(j.mood)}
+                    {formatDate(j.created_at)} {tr("· настроение")} {moodEmoji(j.mood)}
                   </div>
                   <p className="whitespace-pre-wrap text-sm">{j.content}</p>
                 </div>
@@ -172,7 +173,7 @@ export function SleepSection() {
     e.preventDefault();
     const h = parseFloat(hours);
     if (!h || h < 0 || h > 24) {
-      toast.error("Часы выглядят странно");
+      toast.error(tr("Часы выглядят странно"));
       return;
     }
     setSaving(true);
@@ -189,7 +190,7 @@ export function SleepSection() {
     if (error) toast.error(error.message);
     else if (data) {
       setLogs((l) => [data as Sleep, ...l.filter((x) => x.log_date !== (data as Sleep).log_date)]);
-      toast.success("Сон записан");
+      toast.success(tr("Сон записан"));
     }
     setSaving(false);
   }
@@ -210,7 +211,7 @@ export function SleepSection() {
   return (
     <div>
       <form onSubmit={save} className="mb-6 rounded-2xl border border-border bg-card p-5">
-        <div className="mb-1 text-xs text-muted-foreground">Сегодня я спал</div>
+        <div className="mb-1 text-xs text-muted-foreground">{tr("Сегодня я спал")}</div>
         <div className="flex items-end gap-3">
           <input
             type="number"
@@ -221,10 +222,10 @@ export function SleepSection() {
             onChange={(e) => setHours(e.target.value)}
             className="h-14 w-24 rounded-xl border border-input bg-background px-3 text-2xl font-serif outline-none focus:border-foreground"
           />
-          <span className="pb-2 text-sm text-muted-foreground">часов</span>
+          <span className="pb-2 text-sm text-muted-foreground">{tr("часов")}</span>
         </div>
         <div className="mt-4">
-          <div className="mb-2 text-xs text-muted-foreground">Качество</div>
+          <div className="mb-2 text-xs text-muted-foreground">{tr("Качество")}</div>
           <MoodPicker value={quality} onChange={setQuality} />
         </div>
         <button
@@ -232,16 +233,19 @@ export function SleepSection() {
           disabled={saving}
           className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background disabled:opacity-40"
         >
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}Сохранить
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {tr("Сохранить")}
         </button>
       </form>
 
       <div className="mb-6 rounded-2xl border border-border bg-card p-5">
         <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Среднее за {logs.length} дней</span>
+          <span className="text-sm text-muted-foreground">
+            {tr("Среднее за")} {logs.length} {tr("дней")}
+          </span>
           <span className="font-serif text-2xl">
             {avg}
-            <span className="ml-1 text-sm text-muted-foreground">ч</span>
+            <span className="ml-1 text-sm text-muted-foreground">{tr("ч")}</span>
           </span>
         </div>
         {chartData.length > 0 && (
@@ -275,7 +279,7 @@ export function SleepSection() {
       {loading ? (
         <Loader />
       ) : logs.length === 0 ? (
-        <Empty text="Ещё нет записей." />
+        <Empty text={tr("Ещё нет записей.")} />
       ) : (
         <ul className="flex flex-col gap-2">
           {logs.slice(0, 7).map((l) => (
@@ -285,7 +289,10 @@ export function SleepSection() {
             >
               <span className="text-muted-foreground">{l.log_date}</span>
               <span>
-                <span className="font-medium">{Number(l.hours)}ч</span>{" "}
+                <span className="font-medium">
+                  {Number(l.hours)}
+                  {tr("ч")}
+                </span>{" "}
                 <span className="text-muted-foreground">{moodEmoji(l.quality)}</span>
               </span>
             </li>

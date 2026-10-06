@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { isoAddDays, routineOccurrences } from "@/lib/routine-schedule";
+import { tr } from "@/lib/i18n";
 
 export type Subtask = { id: string; title: string; done: boolean };
 
@@ -76,7 +77,7 @@ export const addDays = isoAddDays;
 
 async function requireUser() {
   const { data } = await supabase.auth.getUser();
-  if (!data.user) throw new Error("Войди в аккаунт");
+  if (!data.user) throw new Error(tr("Войди в аккаунт"));
   return data.user;
 }
 

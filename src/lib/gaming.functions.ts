@@ -1,15 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { tr } from "@/lib/i18n";
 
 // ---------- Steam ----------
 async function fetchSteam(steamId: string) {
   const key = process.env.STEAM_API_KEY;
-  if (!key) throw new Error("STEAM_API_KEY не задан");
+  if (!key) throw new Error(tr("STEAM_API_KEY не задан"));
   const url = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=${key}&steamid=${steamId}&include_appinfo=1&include_played_free_games=1&format=json`;
   const res = await fetch(url);
   if (!res.ok)
-    throw new Error(`Steam: ${res.status}. Проверь Steam ID (64-bit) и публичность профиля.`);
+    throw new Error(
+      tr("Steam: {0}. Проверь Steam ID (64-bit) и публичность профиля.", { 0: res.status }),
+    );
   const data = await res.json();
   const games = (data?.response?.games ?? []) as Array<{
     name: string;
@@ -27,18 +30,18 @@ async function fetchSteam(steamId: string) {
 // ---------- Faceit ----------
 async function fetchFaceit(nickname: string) {
   const key = process.env.FACEIT_API_KEY;
-  if (!key) throw new Error("FACEIT_API_KEY не задан");
+  if (!key) throw new Error(tr("FACEIT_API_KEY не задан"));
   const headers = { Authorization: `Bearer ${key}` };
 
   const playerRes = await fetch(
     `https://open.faceit.com/data/v4/players?nickname=${encodeURIComponent(nickname)}`,
     { headers },
   );
-  if (!playerRes.ok) throw new Error(`Faceit: игрок не найден (${playerRes.status})`);
+  if (!playerRes.ok) throw new Error(tr("Faceit: игрок не найден ({0})", { 0: playerRes.status }));
   const player = await playerRes.json();
   const game = player?.games?.cs2 ?? player?.games?.csgo;
   const playerId = player?.player_id;
-  if (!playerId) throw new Error("Faceit: не удалось получить player_id");
+  if (!playerId) throw new Error(tr("Faceit: не удалось получить player_id"));
 
   // lifetime stats
   let kd: number | null = null;

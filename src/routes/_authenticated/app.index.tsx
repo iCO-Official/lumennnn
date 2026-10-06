@@ -5,6 +5,7 @@ import { LumenLogo } from "@/components/lumen-logo";
 import { Calendar, NotebookPen, Sparkles, Settings as SettingsIcon, Home } from "lucide-react";
 import { PlansSection as PlannerPlansSection } from "@/components/planner-sections";
 import { HomeSection, greeting, todayLabel, type Section } from "@/components/app/home";
+import { tr } from "@/lib/i18n";
 
 // Heavier tabs (markdown renderer, charts) load in the background, off the startup path.
 const LumenAiChat = lazy(() =>
@@ -24,7 +25,7 @@ const MetricsSection = lazy(() =>
 );
 
 export const Route = createFileRoute("/_authenticated/app/")({
-  head: () => ({ meta: [{ title: "Lumen — твой день" }] }),
+  head: () => ({ meta: [{ title: tr("Lumen — твой день") }] }),
   component: AppPage,
 });
 
@@ -33,11 +34,11 @@ const SECTIONS: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
-  { id: "home", label: "Сегодня", icon: Home },
-  { id: "plans", label: "Планы", icon: Calendar },
-  { id: "journal", label: "Дневник", icon: NotebookPen },
+  { id: "home", label: tr("Сегодня"), icon: Home },
+  { id: "plans", label: tr("Планы"), icon: Calendar },
+  { id: "journal", label: tr("Дневник"), icon: NotebookPen },
   { id: "ai", label: "AI", icon: Sparkles },
-  { id: "settings", label: "Настройки", icon: SettingsIcon },
+  { id: "settings", label: tr("Настройки"), icon: SettingsIcon },
 ];
 
 // Tab order, so switching slides in the direction of the tapped tab.

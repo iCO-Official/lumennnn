@@ -1,3 +1,5 @@
+import { tr } from "@/lib/i18n";
+
 // Pure date/recurrence helpers shared by the client planner and server code.
 // Dates are local calendar days as "YYYY-MM-DD" strings.
 
@@ -45,16 +47,16 @@ export function parseScheduleLines(text: string) {
     });
 }
 
-const REPEAT_SHORT_DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+const REPEAT_SHORT_DAYS = () => ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"].map((day) => tr(day));
 
 /** "Каждый день", "По будням", "Пн · Ср · Пт" … for weekday numbers 0=Вс…6=Сб. */
 export function repeatLabel(days: number[]) {
   const set = new Set(days);
-  if (set.size === 7) return "Каждый день";
-  if (set.size === 5 && [1, 2, 3, 4, 5].every((d) => set.has(d))) return "По будням";
-  if (set.size === 2 && set.has(0) && set.has(6)) return "По выходным";
+  if (set.size === 7) return tr("Каждый день");
+  if (set.size === 5 && [1, 2, 3, 4, 5].every((d) => set.has(d))) return tr("По будням");
+  if (set.size === 2 && set.has(0) && set.has(6)) return tr("По выходным");
   return [1, 2, 3, 4, 5, 6, 0]
     .filter((d) => set.has(d))
-    .map((d) => REPEAT_SHORT_DAYS[d])
+    .map((d) => REPEAT_SHORT_DAYS()[d])
     .join(" · ");
 }

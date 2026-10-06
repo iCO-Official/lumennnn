@@ -14,6 +14,7 @@ import { MotionConfig } from "motion/react";
 import { ThemeProvider } from "../components/theme-provider";
 import { Toaster } from "../components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getLang, tr } from "@/lib/i18n";
 
 const OG_IMAGE = `${import.meta.env.VITE_SITE_URL ?? ""}/og-image.jpg`;
 
@@ -22,12 +23,12 @@ function NotFoundComponent() {
     <div className="flex min-h-app items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="font-serif text-7xl text-foreground">404</h1>
-        <p className="mt-3 text-sm text-muted-foreground">Страница не найдена.</p>
+        <p className="mt-3 text-sm text-muted-foreground">{tr("Страница не найдена.")}</p>
         <Link
           to="/"
           className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
-          На главную
+          {tr("На главную")}
         </Link>
       </div>
     </div>
@@ -42,8 +43,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <div className="flex min-h-app items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold text-foreground">Что-то пошло не так</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Попробуйте обновить страницу.</p>
+        <h1 className="text-xl font-semibold text-foreground">{tr("Что-то пошло не так")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{tr("Попробуйте обновить страницу.")}</p>
         <button
           onClick={() => {
             router.invalidate();
@@ -51,7 +52,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           }}
           className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
         >
-          Повторить
+          {tr("Повторить")}
         </button>
       </div>
     </div>
@@ -63,18 +64,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Lumen — твой ежедневник и AI-аналитик дня" },
+      { title: tr("Lumen — твой ежедневник и AI-аналитик дня") },
       {
         name: "description",
-        content:
+        content: tr(
           "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей.",
+        ),
       },
       { name: "theme-color", content: "#000000" },
-      { property: "og:title", content: "Lumen — твой ежедневник и AI-аналитик дня" },
+      { property: "og:title", content: tr("Lumen — твой ежедневник и AI-аналитик дня") },
       {
         property: "og:description",
-        content:
+        content: tr(
           "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей.",
+        ),
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -82,16 +85,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { name: "apple-mobile-web-app-title", content: "Lumen" },
       { name: "google", content: "notranslate" },
-      { name: "twitter:title", content: "Lumen — твой ежедневник и AI-аналитик дня" },
+      { name: "twitter:title", content: tr("Lumen — твой ежедневник и AI-аналитик дня") },
       {
         name: "twitter:description",
-        content:
+        content: tr(
           "Минималистичный планировщик задач, сна и здоровья с AI-выводами. Тёмный интерфейс, тренировки, дневник мыслей.",
+        ),
       },
       { property: "og:image", content: OG_IMAGE },
       { property: "og:image:width", content: "1200" },
       { property: "og:image:height", content: "630" },
-      { property: "og:image:alt", content: "Lumen — твой день в твоих руках" },
+      { property: "og:image:alt", content: tr("Lumen — твой день в твоих руках") },
       { name: "twitter:image", content: OG_IMAGE },
     ],
     links: [
@@ -116,7 +120,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="ru" className="dark">
+    <html lang={getLang()} className="dark">
       <head>
         <HeadContent />
       </head>

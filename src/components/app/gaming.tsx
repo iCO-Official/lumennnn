@@ -5,6 +5,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { syncGaming } from "@/lib/gaming.functions";
 import { Card, Empty, Loader, Stat, formatDate } from "./shared";
+import { tr } from "@/lib/i18n";
 
 type GamingStats = {
   steam_total_minutes: number | null;
@@ -54,10 +55,10 @@ export function GamingSection() {
     try {
       const r = await sync({ data: { steamId: steamId || null, faceitNickname: faceit || null } });
       if (r.errors?.length) r.errors.forEach((e) => toast.error(e));
-      else toast.success("Синхронизировано");
+      else toast.success(tr("Синхронизировано"));
       await load();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Ошибка");
+      toast.error(e instanceof Error ? e.message : tr("Ошибка"));
     } finally {
       setSyncing(false);
     }
@@ -72,7 +73,7 @@ export function GamingSection() {
     <div>
       <div className="mb-4 rounded-2xl border border-border bg-card p-5">
         <div className="mb-3 text-sm text-muted-foreground">
-          Подключи аккаунты — AI будет видеть статистику.
+          {tr("Подключи аккаунты — AI будет видеть статистику.")}
         </div>
         <div className="mb-3">
           <div className="mb-1 text-xs text-muted-foreground">Steam ID (64-bit)</div>
@@ -88,7 +89,7 @@ export function GamingSection() {
           <input
             value={faceit}
             onChange={(e) => setFaceit(e.target.value)}
-            placeholder="ник"
+            placeholder={tr("ник")}
             className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:border-foreground"
           />
         </div>
@@ -102,11 +103,11 @@ export function GamingSection() {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          {syncing ? "Синхронизирую…" : "Синхронизировать"}
+          {syncing ? tr("Синхронизирую…") : tr("Синхронизировать")}
         </button>
         {stats?.last_synced_at && (
           <div className="mt-2 text-center text-xs text-muted-foreground">
-            Обновлено {formatDate(stats.last_synced_at)}
+            {tr("Обновлено")} {formatDate(stats.last_synced_at)}
           </div>
         )}
       </div>
@@ -116,7 +117,7 @@ export function GamingSection() {
           {steamHours != null && (
             <div className="mb-3 flex items-baseline gap-2">
               <span className="font-serif text-3xl">{steamHours}</span>
-              <span className="text-sm text-muted-foreground">часов всего</span>
+              <span className="text-sm text-muted-foreground">{tr("часов всего")}</span>
             </div>
           )}
           {stats?.steam_top_games?.length ? (
@@ -124,7 +125,9 @@ export function GamingSection() {
               {stats.steam_top_games.map((g, i) => (
                 <li key={i} className="flex items-center justify-between text-sm">
                   <span className="truncate pr-2">{g.name}</span>
-                  <span className="text-muted-foreground tabular-nums">{g.hours} ч</span>
+                  <span className="text-muted-foreground tabular-nums">
+                    {g.hours} {tr("ч")}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -138,7 +141,7 @@ export function GamingSection() {
             <div className="grid grid-cols-2 gap-3">
               {stats.faceit_elo != null && <Stat label="ELO" value={String(stats.faceit_elo)} />}
               {stats.faceit_level != null && (
-                <Stat label="Уровень" value={String(stats.faceit_level)} />
+                <Stat label={tr("Уровень")} value={String(stats.faceit_level)} />
               )}
               {stats.faceit_kd != null && <Stat label="K/D" value={stats.faceit_kd.toFixed(2)} />}
               {stats.faceit_winrate != null && (
@@ -147,7 +150,7 @@ export function GamingSection() {
             </div>
             {stats.faceit_recent?.length ? (
               <div className="mt-4">
-                <div className="mb-2 text-xs text-muted-foreground">Последние матчи</div>
+                <div className="mb-2 text-xs text-muted-foreground">{tr("Последние матчи")}</div>
                 <ul className="space-y-1 text-xs">
                   {stats.faceit_recent.slice(0, 5).map((m, i) => (
                     <li key={i} className="flex items-center justify-between text-muted-foreground">
@@ -163,7 +166,7 @@ export function GamingSection() {
       )}
 
       {!stats?.steam_total_minutes && !stats?.faceit_elo && (
-        <Empty text="Введи Steam ID или Faceit ник и нажми синхронизировать." />
+        <Empty text={tr("Введи Steam ID или Faceit ник и нажми синхронизировать.")} />
       )}
     </div>
   );
