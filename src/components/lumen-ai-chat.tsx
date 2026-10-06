@@ -230,7 +230,12 @@ export function LumenAiChat() {
   }
 
   return (
-    <section className="fixed inset-x-0 lg:left-60 bottom-[calc(var(--nav-h,calc(4.5rem+env(safe-area-inset-bottom)))-var(--vv-gap,0px))] top-0 z-20 mx-auto flex max-w-4xl flex-col bg-background pt-[env(safe-area-inset-top)]">
+    <section
+      data-ai-chat
+      // Phone: full screen above the tab bar. Computer: right of the sidebar.
+      // Wide screens: docked as a panel on the right, always open.
+      className="fixed inset-x-0 bottom-[calc(var(--nav-h,calc(4.5rem+env(safe-area-inset-bottom)))-var(--vv-gap,0px))] top-0 z-20 mx-auto flex max-w-4xl flex-col bg-background pt-[env(safe-area-inset-top)] md:left-60 xl:left-auto xl:right-0 xl:w-[400px] xl:max-w-none xl:border-l xl:border-border"
+    >
       <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-foreground text-background">

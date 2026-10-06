@@ -1,9 +1,21 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LumenLogo } from "@/components/lumen-logo";
-import { Calendar, NotebookPen, Sparkles, Settings as SettingsIcon, Home } from "lucide-react";
-import { PlansSection as PlannerPlansSection } from "@/components/planner-sections";
+import {
+  Calendar,
+  NotebookPen,
+  Sparkles,
+  Settings as SettingsIcon,
+  Home,
+  Plus,
+  Moon,
+  Ruler,
+  LayoutGrid,
+} from "lucide-react";
+import { PlansSection as PlannerPlansSection, TaskEditor } from "@/components/planner-sections";
+import { AppSheet } from "@/components/ui/app-sheet";
+import { localIso } from "@/lib/planner";
 import { HomeSection, greeting, todayLabel, type Section } from "@/components/app/home";
 import { tr } from "@/lib/i18n";
 
@@ -23,6 +35,41 @@ const SettingsView = lazy(() =>
 const MetricsSection = lazy(() =>
   import("@/components/app/metrics").then((m) => ({ default: m.MetricsSection })),
 );
+
+const WIDE = "(min-width: 1280px)";
+const isWide = () => typeof window !== "undefined" && window.matchMedia(WIDE).matches;
+
+function SideItem({
+  icon: Icon,
+  label,
+  hint,
+  active,
+  onClick,
+  className = "",
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  hint?: string;
+  active: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-10 items-center gap-3 rounded-xl px-3 text-sm transition-colors ${
+        active
+          ? "bg-accent text-foreground"
+          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+      } ${className}`}
+    >
+      <Icon className="h-[18px] w-[18px]" />
+      {label}
+      {hint && <kbd className="ml-auto font-sans text-[11px] text-muted-foreground/60">{hint}</kbd>}
+    </button>
+  );
+}
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: tr("Lumen — твой день") }] }),
@@ -56,7 +103,9 @@ function AppPage() {
   const [[section, direction], setPage] = useState<[Section, number]>(["home", 0]);
   // Visited tabs stay mounted (like a native tab bar): switching back is instant,
   // with no reload or "Загрузка…" flash.
-  const [visited, setVisited] = useState<Section[]>(["home"]);
+  const [visited, setVisited] = useState<Section[]>(() => (isWide() ? ["home", "ai"] : ["home"]));
+  const [adding, setAdding] = useState(false);
+  const [email, setEmail] = useState("");
   const [name, setName] = useState("");
 
   const sectionRef = useRef(section);
@@ -64,6 +113,11 @@ function AppPage() {
   // Stable identity, so the memoized tab views below never re-render on tab switches.
   const setSection = useCallback((next: Section) => {
     const current = sectionRef.current;
+    if (next === "ai" && isWide()) {
+      // Wide screens: the chat is always open on the right; just jump into it.
+      document.querySelector<HTMLTextAreaElement>("[data-ai-chat] textarea")?.focus();
+      return;
+    }
     if (next === current) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -203,6 +257,17 @@ function AppPage() {
     };
   }, []);
 
+  // Growing the window to wide while on the AI tab: the chat docks, show Home.
+  useEffect(() => {
+    const query = window.matchMedia(WIDE);
+    const onChange = () => {
+      if (query.matches && sectionRef.current === "ai") setPage(["home", 0]);
+      if (query.matches) setVisited((list) => (list.includes("ai") ? list : [...list, "ai"]));
+    };
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
   // Desktop: keys 1–5 switch tabs (ignored while typing or with modifiers).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -210,6 +275,11 @@ function AppPage() {
       const el = document.activeElement;
       if (el?.matches?.("input, textarea, select, [contenteditable]")) return;
       if (document.querySelector('[role="dialog"]')) return;
+      if (e.key === "n" || e.key === "N" || e.key === "т" || e.key === "Т") {
+        e.preventDefault();
+        setAdding(true);
+        return;
+      }
       const target = SECTIONS[Number(e.key) - 1];
       if (target) setSection(target.id);
     };
@@ -245,6 +315,7 @@ function AppPage() {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
+      setEmail(u.user.email ?? "");
       const { data } = await supabase
         .from("profiles")
         .select("display_name")
@@ -257,45 +328,92 @@ function AppPage() {
   }, []);
 
   return (
-    <div className="relative min-h-app bg-background text-foreground lg:pl-60">
-      {/* Desktop: a sidebar instead of the bottom tab bar. */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border bg-background px-3 py-6 lg:flex">
-        <div className="px-3 pb-8">
+    <div className="relative min-h-app bg-background text-foreground md:pl-60 xl:pr-[400px]">
+      {/* Computer: a sidebar instead of the bottom tab bar. */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border bg-background px-3 py-6 md:flex">
+        <div className="px-3 pb-6">
           <LumenLogo />
         </div>
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="mb-5 flex h-11 items-center gap-2 rounded-xl bg-foreground px-3 text-sm font-medium text-background transition-opacity hover:opacity-90"
+        >
+          <Plus className="h-4 w-4" />
+          {tr("Новое дело")}
+          <kbd className="ml-auto font-sans text-[11px] opacity-50">N</kbd>
+        </button>
         <nav className="flex flex-col gap-1">
-          {SECTIONS.map((s, i) => {
-            const Icon = s.icon;
-            const active = section === s.id;
-            return (
-              <button
-                key={s.id}
-                onClick={() => setSection(s.id)}
-                className={`flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] transition-colors ${
-                  active
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {s.label}
-                <kbd className="ml-auto font-sans text-[11px] text-muted-foreground/60">
-                  {i + 1}
-                </kbd>
-              </button>
-            );
-          })}
+          {SECTIONS.map((s, i) => (
+            <SideItem
+              key={s.id}
+              icon={s.icon}
+              label={s.label}
+              hint={String(i + 1)}
+              active={section === s.id}
+              onClick={() => setSection(s.id)}
+              // The chat is docked on the right on wide screens.
+              className={s.id === "ai" ? "xl:hidden" : ""}
+            />
+          ))}
         </nav>
+        <p className="mb-1 mt-6 px-3 text-[11px] uppercase tracking-widest text-muted-foreground/70">
+          {tr("Ещё")}
+        </p>
+        <nav className="flex flex-col gap-1">
+          <SideItem
+            icon={Moon}
+            label={tr("Сон")}
+            active={section === "sleep"}
+            onClick={() => setSection("sleep")}
+          />
+          <SideItem
+            icon={Ruler}
+            label={tr("Метрики")}
+            active={section === "metrics"}
+            onClick={() => setSection("metrics")}
+          />
+          <Link
+            to="/app/more"
+            className="flex h-10 items-center gap-3 rounded-xl px-3 text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+          >
+            <LayoutGrid className="h-[18px] w-[18px]" />
+            {tr("Тренировки и другое")}
+          </Link>
+        </nav>
+        <button
+          type="button"
+          onClick={() => setSection("settings")}
+          className="mt-auto flex items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-accent/60"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground font-serif text-base text-background">
+            {(name || email || "?").trim().charAt(0).toUpperCase()}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm">{name || tr("Без имени")}</span>
+            <span className="block truncate text-xs text-muted-foreground">{email}</span>
+          </span>
+        </button>
       </aside>
 
+      <AppSheet open={adding} onClose={() => setAdding(false)}>
+        <TaskEditor
+          task={null}
+          editAllFuture={false}
+          defaultDate={localIso()}
+          onClose={() => setAdding(false)}
+          onSaved={() => setAdding(false)}
+        />
+      </AppSheet>
+
       {section !== "ai" && (
-        <header className="relative z-10 mx-auto flex h-14 max-w-4xl items-center px-5 pt-2 sm:px-8 sm:pt-4 lg:hidden">
+        <header className="relative z-10 mx-auto flex h-14 max-w-4xl items-center px-5 pt-2 sm:px-8 sm:pt-4 md:hidden">
           <LumenLogo />
         </header>
       )}
 
       <main
-        className={`relative z-10 mx-auto max-w-4xl lg:max-w-5xl ${section === "ai" ? "" : "px-5 pb-36 pt-3 sm:px-8 sm:pt-6 lg:pb-16 lg:pt-10"}`}
+        className={`relative z-10 mx-auto max-w-4xl lg:max-w-5xl ${section === "ai" ? "" : "px-5 pb-36 pt-3 sm:px-8 sm:pt-6 md:pb-16 md:pt-10"}`}
       >
         {section !== "ai" && section !== "settings" && (
           <div className="mb-5">
@@ -314,7 +432,15 @@ function AppPage() {
             key={id}
             // Re-shown tabs replay the CSS enter animation (GPU: opacity + transform).
             // The AI chat is position:fixed, so it only fades (a transform would re-anchor it).
-            className={id !== section ? "hidden" : id === "ai" ? "tab-fade" : "tab-enter"}
+            className={
+              id === "ai"
+                ? section === "ai"
+                  ? "tab-fade"
+                  : "hidden xl:block" // docked on the right on wide screens
+                : id !== section
+                  ? "hidden"
+                  : "tab-enter"
+            }
             style={{ "--tab-dir": direction } as React.CSSProperties}
           >
             <Suspense fallback={null}>{views[id]}</Suspense>
@@ -325,7 +451,7 @@ function AppPage() {
       {/* Bottom navigation */}
       <nav
         ref={navRef}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(6px,calc(env(safe-area-inset-bottom)-14px))] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(6px,calc(env(safe-area-inset-bottom)-14px))] md:hidden"
         style={{ transform: "translateY(var(--vv-gap, 0px))" }}
       >
         <div

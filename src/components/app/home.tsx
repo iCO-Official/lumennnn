@@ -125,14 +125,15 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
   const done = list.filter((t) => t.completed).length;
 
   return (
-    // Phone: one column. Desktop: the day plan gets its own column on the right
-    // (the left wrapper is display:contents on phones, so `order` interleaves).
-    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">
-      <div className="contents lg:flex lg:flex-col lg:gap-5">
-        <div className="order-1 lg:order-none">
+    // One column on phones (and on xl, where the docked AI chat takes the room);
+    // two columns when there's space: the day plan gets the right one. The left
+    // wrapper is display:contents in one-column mode, so `order` interleaves.
+    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 xl:flex xl:items-stretch 2xl:grid 2xl:items-start">
+      <div className="contents lg:flex lg:flex-col lg:gap-5 xl:contents 2xl:flex">
+        <div className="order-1 lg:order-none xl:order-1 2xl:order-none">
           <DayProgress done={done} total={list.length} loading={tasks === null} />
         </div>
-        <div className="order-2 lg:order-none">
+        <div className="order-2 lg:order-none xl:order-2 2xl:order-none">
           <NowNext
             tasks={list}
             now={now}
@@ -141,18 +142,18 @@ export function HomeSection({ onGo }: { onGo: (s: Section) => void }) {
             onAdd={() => setAdding(true)}
           />
         </div>
-        <div className="order-4 lg:order-none">
+        <div className="order-4 lg:order-none xl:order-4 2xl:order-none">
           <QuickActions onAdd={() => setAdding(true)} onGo={onGo} />
         </div>
-        <div className="order-5 lg:order-none">
+        <div className="order-5 lg:order-none xl:order-5 2xl:order-none">
           <BriefCard onGo={onGo} />
         </div>
-        <div className="order-6 lg:order-none">
+        <div className="order-6 lg:order-none xl:order-6 2xl:order-none">
           <RemindersButton />
         </div>
       </div>
       {list.length > 0 && (
-        <div className="order-3 lg:sticky lg:top-6 lg:order-none">
+        <div className="order-3 lg:sticky lg:top-6 lg:order-none xl:static xl:order-3 2xl:sticky 2xl:order-none">
           <Timeline tasks={list} now={now} onToggle={toggle} onAll={() => onGo("plans")} />
         </div>
       )}
